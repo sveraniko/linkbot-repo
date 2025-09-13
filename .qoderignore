@@ -1,0 +1,31 @@
+# сборка/артефакты
+dist/
+build/
+out/
+.cache/
+coverage/
+*.log
+**/logs/
+
+# зависимости
+node_modules/
+.venv/
+.env/
+__pycache__/
+target/
+.gradle/
+.mvn/
+
+# фреймворки
+.next/
+.nuxt/
+.storybook/
+.playwright/
+
+# VCS и тяжёлое
+.git/
+.git-lfs/
+*.ipynb
+*.bin
+*.min.js
+# Specify files or folders to ignore during indexing. Use commas to separate entries. Glob patterns like *.log，my-security/ are supported.
