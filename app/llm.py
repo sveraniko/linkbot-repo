@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 # Try to import OpenAI
 try:
     from openai import AsyncOpenAI
+    from openai.types.chat import ChatCompletionMessageParam
     _client = AsyncOpenAI(api_key=settings.openai_api_key)
     OPENAI_AVAILABLE = True
 except ImportError:
@@ -25,7 +26,7 @@ SYSTEM_BASE = (
     "не выдумывая проектные детали. Отвечай конкретно, структурировано. Не раскрывай ход рассуждений."
 )
 
-def _make_messages(prompt: str, ctx_chunks: Sequence[str]) -> list[dict]:
+def _make_messages(prompt: str, ctx_chunks: Sequence[str]) -> list[ChatCompletionMessageParam]:
     ctx_block = ""
     if ctx_chunks:
         # Жёстко отделяем контекст, чтобы модель не «мешала» его с инструкциями
@@ -37,15 +38,15 @@ def _make_messages(prompt: str, ctx_chunks: Sequence[str]) -> list[dict]:
         {"role": "user", "content": prompt},
     ]
 
-async def ask_llm(prompt: str, ctx_chunks: Sequence[str], model: str = "gpt-5", max_tokens: int = 1200) -> str:
+async def ask_llm(prompt: str, ctx_chunks: Sequence[str], model: str = "gpt-4o", max_tokens: int = 1200) -> str:
     """
-    Основной ответ. model: 'gpt-5' | 'gpt-5-thinking'
+    Основной ответ. model: 'gpt-4o' | 'gpt-4o-mini'
     """
-    if not OPENAI_AVAILABLE:
+    if not OPENAI_AVAILABLE or _client is None:
         return "⚠️ OpenAI SDK не установлен. Установите openai>=1.40.0"
     
     messages = _make_messages(prompt, ctx_chunks)
-    use_model = "gpt-5-thinking" if model == "gpt-5-thinking" else "gpt-5"
+    use_model = "gpt-4o-mini" if model == "gpt-4o-mini" else "gpt-4o"
 
     try:
         # Chat Completions — надёжно и просто.
@@ -64,19 +65,22 @@ async def summarize_text(text: str, model: str | None = None, max_tokens: int = 
     """
     Краткое резюме ответа (используется кнопкой 📌 Summary).
     """
-    if not OPENAI_AVAILABLE:
+    if not OPENAI_AVAILABLE or _client is None:
         return "⚠️ OpenAI SDK не установлен. Установите openai>=1.40.0"
         
-    model = model or "gpt-5"
+    model = model or "gpt-4o"
     prompt = (
         "Сделай сжатое, фактологичное резюме текста ниже: 5–10 пунктов или ~120–200 слов. "
         "Без рассуждений, только итог.\n\nТекст:\n" + text
     )
+    messages: list[ChatCompletionMessageParam] = [
+        {"role": "system", "content": SYSTEM_BASE},
+        {"role": "user", "content": prompt}
+    ]
     try:
         resp = await _client.chat.completions.create(
             model=model,
-            messages=[{"role": "system", "content": SYSTEM_BASE},
-                      {"role": "user", "content": prompt}],
+            messages=messages,
             temperature=0.2,
             max_tokens=max_tokens,
         )
@@ -97,7 +101,7 @@ async def generate_zip_files(task_description: str, context_chunks: Sequence[str
     Returns:
         Dictionary mapping file paths to their content
     """
-    if not OPENAI_AVAILABLE:
+    if not OPENAI_AVAILABLE or _client is None:
         return {"error.txt": "OpenAI SDK не установлен. Установите openai>=1.40.0"}
     
     # Prepare context and prompt
@@ -113,7 +117,7 @@ async def generate_zip_files(task_description: str, context_chunks: Sequence[str
 ЗАДАЧА: {task_description}
 ТЕГИ: {tags_str}
 
-ИНСТРУКЦИИ:
+ИНСТРУКЦИЕ:
 1. Проанализируйте контекст проекта
 2. Создайте необходимые файлы для выполнения задачи
 3. Верните JSON в формате: {{"files": {{"path/file.ext": "content", ...}}, "notes": "описание изменений"}}
@@ -123,15 +127,16 @@ async def generate_zip_files(task_description: str, context_chunks: Sequence[str
 
 ОТВЕТ (JSON):
 """
+    messages: list[ChatCompletionMessageParam] = [
+        {"role": "system", "content": SYSTEM_BASE},
+        {"role": "user", "content": prompt}
+    ]
 
     try:
         # Call OpenAI API
         resp = await _client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {"role": "system", "content": SYSTEM_BASE},
-                {"role": "user", "content": prompt}
-            ],
+            model="gpt-4o",
+            messages=messages,
             temperature=0.3,
             max_tokens=2000,
         )
@@ -163,7 +168,7 @@ async def generate_single_file(file_path: str, task_description: str, context_ch
     Returns:
         File content as string
     """
-    if not OPENAI_AVAILABLE:
+    if not OPENAI_AVAILABLE or _client is None:
         return "# OpenAI SDK не установлен. Установите openai>=1.40.0"
         
     context = "\n\n".join(context_chunks[:30])
@@ -186,15 +191,16 @@ async def generate_single_file(file_path: str, task_description: str, context_ch
 
 СОДЕРЖИМОЕ ФАЙЛА:
 """
+    messages: list[ChatCompletionMessageParam] = [
+        {"role": "system", "content": SYSTEM_BASE},
+        {"role": "user", "content": prompt}
+    ]
 
     try:
         # Call OpenAI API
         resp = await _client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {"role": "system", "content": SYSTEM_BASE},
-                {"role": "user", "content": prompt}
-            ],
+            model="gpt-4o",
+            messages=messages,
             temperature=0.3,
             max_tokens=1500,
         )
@@ -216,7 +222,7 @@ async def analyze_diff_context(summary: str, context_chunks: Sequence[str]) -> s
     Returns:
         Analysis and recommendations
     """
-    if not OPENAI_AVAILABLE:
+    if not OPENAI_AVAILABLE or _client is None:
         return "⚠️ OpenAI SDK не установлен. Установите openai>=1.40.0"
         
     context = "\n\n".join(context_chunks[:20])
@@ -238,15 +244,16 @@ async def analyze_diff_context(summary: str, context_chunks: Sequence[str]) -> s
 
 АНАЛИЗ:
 """
+    messages: list[ChatCompletionMessageParam] = [
+        {"role": "system", "content": SYSTEM_BASE},
+        {"role": "user", "content": prompt}
+    ]
 
     try:
         # Call OpenAI API
         resp = await _client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {"role": "system", "content": SYSTEM_BASE},
-                {"role": "user", "content": prompt}
-            ],
+            model="gpt-4o",
+            messages=messages,
             temperature=0.2,
             max_tokens=1000,
         )
