@@ -55,8 +55,10 @@ services:
       - MINIO_SECURE=${MINIO_SECURE}
     volumes:
       - ./:/app
+      - repos_data:/app/repos   # локальный кэш git
     command: ["sh","-c","python -m app.main"]  # ← БЕЗ alembic
 
 volumes:
   linkbot_db_data:
   linkbot_minio_data:
+  repos_data:

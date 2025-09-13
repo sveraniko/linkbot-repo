@@ -81,3 +81,13 @@ class UserState(Base):
     context_kinds: Mapped[str | None] = mapped_column(String(256))
     context_tags: Mapped[str | None] = mapped_column(String(256))
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    last_panel_msg_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+class Repo(Base):
+    __tablename__ = "repos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger)
+    alias: Mapped[str] = mapped_column(String(64))
+    url: Mapped[str] = mapped_column(String(512))
+    branch: Mapped[str] = mapped_column(String(64), default="main")
+    last_synced_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))

@@ -16,6 +16,7 @@ from app.services.memory import (
 from app.llm import ask_llm
 from app.models import Project
 from typing import List
+from app.ui import show_panel
 
 router = Router()
 
@@ -36,6 +37,13 @@ def kb_menu(model: str) -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="📂 Projects", callback_data="projects:list"),
+        ],
+        [
+            InlineKeyboardButton(text="📤 Export", callback_data="export:open"),
+            InlineKeyboardButton(text="🔗 Repo", callback_data="repo:open"),
+        ],
+        [
+            InlineKeyboardButton(text="🧹 Cleanup by date", callback_data="cleanup:open"),
         ],
         [
             InlineKeyboardButton(text="🏷 API", callback_data="ctx:tags:api"),
@@ -64,13 +72,27 @@ def kb_menu(model: str) -> InlineKeyboardMarkup:
 async def menu(message: Message):
     async with session_scope() as session:
         model = await get_preferred_model(session, message.from_user.id if message.from_user else 0)
-        await message.answer("Меню быстрых действий:", reply_markup=kb_menu(model))
+        # Delete the original "/menu" message to prevent chat clutter
+        try:
+            await message.delete()
+        except:
+            pass
+        if message.bot and message.chat and message.from_user:
+            await show_panel(session, message.bot, message.chat.id, message.from_user.id,
+                             "Меню быстрых действий:", kb_menu(model))
 
 @router.message(Command("actions"))
 async def actions(message: Message):
     async with session_scope() as session:
         model = await get_preferred_model(session, message.from_user.id if message.from_user else 0)
-        await message.answer("Панель действий:", reply_markup=kb_menu(model))
+        # Delete the original "/actions" message to prevent chat clutter
+        try:
+            await message.delete()
+        except:
+            pass
+        if message.bot and message.chat and message.from_user:
+            await show_panel(session, message.bot, message.chat.id, message.from_user.id,
+                             "Панель действий:", kb_menu(model))
 
 # ── Hints ───────────────────────────────────────────────────────────────────────
 
@@ -82,7 +104,12 @@ async def hint_zip(cb: CallbackQuery):
         "2) Ответом на сообщение отправьте:\n"
         "<code>/importzip tags code,snapshot,rev-YYYY-MM-DD</code>"
     )
+    # Delete the panel and send hint
     if cb.message and isinstance(cb.message, Message):
+        try:
+            await cb.message.delete()
+        except:
+            pass
         await cb.message.answer(txt)
     await cb.answer()
 
@@ -94,8 +121,13 @@ async def status_show(cb: CallbackQuery):
     from app.handlers.status import render_status
     async with session_scope() as st:
         text = await render_status(st, cb.from_user.id if cb.from_user else 0)
-    if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer(text)
+        # Delete the panel and send status
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.delete()
+            except:
+                pass
+            await cb.message.answer(text)
     await cb.answer()
 
 # ── Context presets ────────────────────────────────────────────────────────────
@@ -106,8 +138,13 @@ async def ctx_reset(cb: CallbackQuery):
     async with session_scope() as st:
         await set_context_filters(st, cb.from_user.id if cb.from_user else 0, kinds_csv="", tags_csv="")
         await st.commit()
-    if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer("Фильтры контекста сброшены. Используется вся память проекта.")
+        # Delete the panel and send confirmation
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.delete()
+            except:
+                pass
+            await cb.message.answer("Фильтры контекста сброшены. Используется вся память проекта.")
     await cb.answer()
 
 @router.callback_query(F.data.startswith("ctx:tags:"))
@@ -119,8 +156,13 @@ async def ctx_presets(cb: CallbackQuery):
     async with session_scope() as st:
         await set_context_filters(st, cb.from_user.id if cb.from_user else 0, tags_csv=tag)
         await st.commit()
-    if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer(f"Фильтры обновлены: tags={tag}")
+        # Delete the panel and send confirmation
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.delete()
+            except:
+                pass
+            await cb.message.answer(f"Фильтры обновлены: tags={tag}")
     await cb.answer()
 
 # ── Model switch ───────────────────────────────────────────────────────────────
@@ -133,11 +175,13 @@ async def model_switch(cb: CallbackQuery):
     async with session_scope() as session:
         applied = await set_preferred_model(session, cb.from_user.id if cb.from_user else 0, model)
         await session.commit()
-        if cb.message and isinstance(cb.message, Message) and hasattr(cb.message, 'edit_reply_markup'):
+        # Delete the panel and send confirmation
+        if cb.message and isinstance(cb.message, Message):
             try:
-                await cb.message.edit_reply_markup(reply_markup=kb_menu(applied))
+                await cb.message.delete()
             except:
                 pass
+            await cb.message.answer(f"Модель установлена: {applied}")
     await cb.answer(f"Модель установлена: {applied}")
 
 # ── Import wizard (последний файл) ─────────────────────────────────────────────
@@ -147,7 +191,12 @@ async def do_import_last(cb: CallbackQuery):
     async with session_scope() as session:
         # чтобы избежать циклического импорта, берём функцию внутри хендлера
         from app.handlers.import_file import import_last_for_user
+        # Delete the panel first
         if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.delete()
+            except:
+                pass
             ok = await import_last_for_user(cb.message, session, tags=None)
             if not ok:
                 await cb.message.answer("Нет «последнего файла». Пришлите .txt/.md/.json и повторите.")
@@ -178,7 +227,13 @@ async def ask_templates(cb: CallbackQuery):
         "risks": "Определи ключевые риски проекта и предложи меры снижения. Ссылайся на контекст.",
         "relnotes": "Сгенерируй краткие release notes по последним изменениям и решениям, пригодные для команды.",
     }
-    await _ask_with_template(cb, prompts.get(kind, "Сформируй краткий план работ по проекту."))
+    # Delete the panel first
+    if cb.message and isinstance(cb.message, Message):
+        try:
+            await cb.message.delete()
+        except:
+            pass
+        await _ask_with_template(cb, prompts.get(kind, "Сформируй краткий план работ по проекту."))
     await cb.answer()
 
 # --- Quiet / Scope / Sources ---
@@ -190,8 +245,13 @@ async def quiet_toggle(cb: CallbackQuery):
         _, quiet_on, _, _ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
         newv = await set_quiet_mode(st, cb.from_user.id if cb.from_user else 0, on=not quiet_on)
         await st.commit()
-    if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer(f"Quiet mode: {'ON' if newv else 'OFF'}")
+        # Delete the panel and send confirmation
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.delete()
+            except:
+                pass
+            await cb.message.answer(f"Quiet mode: {'ON' if newv else 'OFF'}")
     await cb.answer()
 
 # Новые обработчики для Sources
@@ -202,11 +262,13 @@ def build_sources_kb(current: str) -> InlineKeyboardMarkup:
 
 @router.callback_query(F.data == "sources:toggle")
 async def sources_toggle(cb: CallbackQuery):
+    from app.db import session_scope
     async with session_scope() as st:
         _, _, current, _ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-    kb = build_sources_kb(current)
-    if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer("Выбери источники (Sources):", reply_markup=kb)
+        kb = build_sources_kb(current)
+        if cb.message and isinstance(cb.message, Message) and cb.message.bot and cb.message.chat and cb.from_user:
+            await show_panel(st, cb.message.bot, cb.message.chat.id, cb.from_user.id,
+                             "Выбери источники (Sources):", kb)
     await cb.answer()
 
 @router.callback_query(F.data.startswith("sources:set:"))
@@ -214,12 +276,18 @@ async def sources_set(cb: CallbackQuery):
     if not cb.data:
         return await cb.answer("Invalid data")
     _, _, val = cb.data.split(":")
+    from app.db import session_scope
     async with session_scope() as st:
         stt = await _ensure_user_state(st, cb.from_user.id if cb.from_user else 0)
         stt.sources_mode = val
         await st.commit()
-    if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer(f"Sources: {val}")
+        # Delete the panel and send confirmation
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.delete()
+            except:
+                pass
+            await cb.message.answer(f"Sources: {val}")
     await cb.answer()
 
 # Новые обработчики для Scope
@@ -230,11 +298,13 @@ def build_scope_kb(current: str) -> InlineKeyboardMarkup:
 
 @router.callback_query(F.data == "scope:toggle")
 async def scope_toggle(cb: CallbackQuery):
+    from app.db import session_scope
     async with session_scope() as st:
         _, _, _, current = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-    kb = build_scope_kb(current)
-    if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer("Выбери область ответа (Scope):", reply_markup=kb)
+        kb = build_scope_kb(current)
+        if cb.message and isinstance(cb.message, Message) and cb.message.bot and cb.message.chat and cb.from_user:
+            await show_panel(st, cb.message.bot, cb.message.chat.id, cb.from_user.id,
+                             "Выбери область ответа (Scope):", kb)
     await cb.answer()
 
 @router.callback_query(F.data.startswith("scope:set:"))
@@ -242,12 +312,18 @@ async def scope_set(cb: CallbackQuery):
     if not cb.data:
         return await cb.answer("Invalid data")
     _, _, val = cb.data.split(":")
+    from app.db import session_scope
     async with session_scope() as st:
         stt = await _ensure_user_state(st, cb.from_user.id if cb.from_user else 0)
         stt.scope_mode = val
         await st.commit()
-    if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer(f"Scope: {val}")
+        # Delete the panel and send confirmation
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.delete()
+            except:
+                pass
+            await cb.message.answer(f"Scope: {val}")
     await cb.answer()
 
 # --- Projects list / link/unlink / activate ---
@@ -266,13 +342,15 @@ def build_projects_page(projects, linked_ids: set[int], active_id: int | None):
 
 @router.callback_query(F.data.startswith("projects:list"))
 async def projects_list(cb: CallbackQuery):
+    from app.db import session_scope
     async with session_scope() as st:
         allp = await list_projects(st)
         linked = set(await get_linked_project_ids(st, cb.from_user.id if cb.from_user else 0))
         cur = await get_active_project(st, cb.from_user.id if cb.from_user else 0)
         kb = build_projects_page(allp, linked, cur.id if cur else None)
-    if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer("Проекты:", reply_markup=kb)
+        if cb.message and isinstance(cb.message, Message) and cb.message.bot and cb.message.chat and cb.from_user:
+            await show_panel(st, cb.message.bot, cb.message.chat.id, cb.from_user.id,
+                             "Проекты:", kb)
     await cb.answer()
 
 @router.callback_query(F.data.startswith("projects:link:"))

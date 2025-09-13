@@ -1,195 +1,39 @@
- ✔ project-memory-bot-bot                Built                                                                     0.0s
- ✔ Container project-memory-bot-minio-1  Healthy                                                                  10.5s
- ✔ Container project-memory-bot-db-1     Healthy                                                                  10.5s
- ✔ Container project-memory-bot-bot-1    Started                                                                  10.7s
 bot-1  | INFO:__main__:Starting Telegram bot...
 bot-1  | INFO:__main__:MinIO bucket ensured
-bot-1  | INFO:__main__:Routers registered, starting polling...
-bot-1  | INFO:aiogram.dispatcher:Start polling
-bot-1  | INFO:aiogram.dispatcher:Run polling for bot @ProjectMemory_Bot id=8386572026 - 'ProjectMemoryBot'
-bot-1  | INFO:aiogram.event:Update id=658400623 is not handled. Duration 179 ms by bot id=8386572026
-bot-1  | ERROR:aiogram.event:Cause exception while process update id=658400623 by bot id=8386572026
-bot-1  | IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.ForeignKeyViolationError'>: insert or update on table "bot_messages" violates foreign key constraint "bot_messages_project_id_fkey"
-bot-1  | DETAIL:  Key (project_id)=(0) is not present in table "projects".
-bot-1  | [SQL: INSERT INTO bot_messages (chat_id, user_id, tg_message_id, reply_to_user_msg_id, artifact_id, saved, project_id, used_projects) VALUES ($1::BIGINT, $2::BIGINT, $3::INTEGER, $4::INTEGER, $5::INTEGER, $6::BOOLEAN, $7::INTEGER, $8::JSONB) RETURNING bot_messages.id, bot_messages.created_at]
-bot-1  | [parameters: (1491225535, 1491225535, 94, 93, None, False, 0, '{"ids": []}')]
-bot-1  | (Background on this error at: https://sqlalche.me/e/20/gkpj)
 bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 545, in _prepare_and_execute
-bot-1  |     self._rows = deque(await prepared_stmt.fetch(*parameters))
-bot-1  |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/prepared_stmt.py", line 176, in fetch
-bot-1  |     data = await self.__bind_execute(args, 0, timeout)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/prepared_stmt.py", line 267, in __bind_execute
-bot-1  |     data, status, _ = await self.__do_execute(
-bot-1  |                       ^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/prepared_stmt.py", line 256, in __do_execute
-bot-1  |     return await executor(protocol)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "asyncpg/protocol/protocol.pyx", line 206, in bind_execute
-bot-1  | asyncpg.exceptions.ForeignKeyViolationError: insert or update on table "bot_messages" violates foreign key constraint "bot_messages_project_id_fkey"
-bot-1  | DETAIL:  Key (project_id)=(0) is not present in table "projects".
-bot-1  |
-bot-1  | The above exception was the direct cause of the following exception:
-bot-1  |
-bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
-bot-1  |     self.dialect.do_execute(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
-bot-1  |     cursor.execute(statement, parameters)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
-bot-1  |     self._adapt_connection.await_(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
-bot-1  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
-bot-1  |     value = await result
-bot-1  |             ^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
-bot-1  |     self._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
-bot-1  |     self._adapt_connection._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
-bot-1  |     raise translated_error from error
-bot-1  | sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.IntegrityError: <class 'asyncpg.exceptions.ForeignKeyViolationError'>: insert or update on table "bot_messages" violates foreign key constraint "bot_messages_project_id_fkey"
-bot-1  | DETAIL:  Key (project_id)=(0) is not present in table "projects".
-bot-1  |
-bot-1  | The above exception was the direct cause of the following exception:
-bot-1  |
-bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
-bot-1  |     response = await self.feed_update(bot, update, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
-bot-1  |     response = await self.update.wrap_outer_middleware(
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
-bot-1  |     return await handler(event, data)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
-bot-1  |     return await handler(event, data)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
-bot-1  |     return await handler(event, data)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
-bot-1  |     return await wrapped_inner(event, kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
-bot-1  |     return await wrapped()
+bot-1  |   File "<frozen runpy>", line 198, in _run_module_as_main
+bot-1  |   File "<frozen runpy>", line 88, in _run_code
+bot-1  |   File "/app/app/main.py", line 45, in <module>
+bot-1  |     asyncio.run(main())
+bot-1  |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
+bot-1  |     return runner.run(main)
+bot-1  |            ^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+bot-1  |     return self._loop.run_until_complete(task)
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+bot-1  |     return future.result()
 bot-1  |            ^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
-bot-1  |     return await self.propagate_event(update_type=update_type, event=event, **kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
-bot-1  |     return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
-bot-1  |     return await self._propagate_event(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 174, in _propagate_event
-bot-1  |     response = await router.propagate_event(update_type=update_type, event=event, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
-bot-1  |     return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
-bot-1  |     return await self._propagate_event(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 174, in _propagate_event
-bot-1  |     response = await router.propagate_event(update_type=update_type, event=event, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
-bot-1  |     return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
-bot-1  |     return await self._propagate_event(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
-bot-1  |     response = await observer.trigger(event, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
-bot-1  |     return await wrapped_inner(event, kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
-bot-1  |     return await wrapped()
-bot-1  |            ^^^^^^^^^^^^^^^
-bot-1  |   File "/app/app/handlers/chat.py", line 74, in on_free_text
-bot-1  |     st.add(bm); await st.commit()
-bot-1  |                 ^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 1014, in commit
-bot-1  |     await greenlet_spawn(self.sync_session.commit)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 203, in greenlet_spawn
-bot-1  |     result = context.switch(value)
-bot-1  |              ^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2032, in commit
-bot-1  |     trans.commit(_to_root=True)
-bot-1  |   File "<string>", line 2, in commit
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
-bot-1  |     ret_value = fn(self, *arg, **kw)
-bot-1  |                 ^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 1313, in commit
-bot-1  |     self._prepare_impl()
-bot-1  |   File "<string>", line 2, in _prepare_impl
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
-bot-1  |     ret_value = fn(self, *arg, **kw)
-bot-1  |                 ^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 1288, in _prepare_impl
-bot-1  |     self.session.flush()
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 4345, in flush
-bot-1  |     self._flush(objects)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 4480, in _flush
-bot-1  |     with util.safe_reraise():
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
-bot-1  |     raise exc_value.with_traceback(exc_tb)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 4441, in _flush
-bot-1  |     flush_context.execute()
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
-bot-1  |     rec.execute(self)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
-bot-1  |     util.preloaded.orm_persistence.save_obj(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py", line 93, in save_obj
-bot-1  |     _emit_insert_statements(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/persistence.py", line 1233, in _emit_insert_statements
-bot-1  |     result = connection.execute(
-bot-1  |              ^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
-bot-1  |     return meth(
-bot-1  |            ^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
-bot-1  |     return connection._execute_clauseelement(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
-bot-1  |     ret = self._execute_context(
-bot-1  |           ^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
-bot-1  |     return self._exec_single_context(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
-bot-1  |     self._handle_dbapi_exception(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
-bot-1  |     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
-bot-1  |     self.dialect.do_execute(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
-bot-1  |     cursor.execute(statement, parameters)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
-bot-1  |     self._adapt_connection.await_(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
-bot-1  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
-bot-1  |     value = await result
-bot-1  |             ^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
-bot-1  |     self._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
-bot-1  |     self._adapt_connection._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
-bot-1  |     raise translated_error from error
-bot-1  | sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.ForeignKeyViolationError'>: insert or update on table "bot_messages" violates foreign key constraint "bot_messages_project_id_fkey"
-bot-1  | DETAIL:  Key (project_id)=(0) is not present in table "projects".
-bot-1  | [SQL: INSERT INTO bot_messages (chat_id, user_id, tg_message_id, reply_to_user_msg_id, artifact_id, saved, project_id, used_projects) VALUES ($1::BIGINT, $2::BIGINT, $3::INTEGER, $4::INTEGER, $5::INTEGER, $6::BOOLEAN, $7::INTEGER, $8::JSONB) RETURNING bot_messages.id, bot_messages.created_at]
-bot-1  | [parameters: (1491225535, 1491225535, 94, 93, None, False, 0, '{"ids": []}')]
-bot-1  | (Background on this error at: https://sqlalche.me/e/20/gkpj)
+bot-1  |   File "/app/app/main.py", line 23, in main
+bot-1  |     await bot.set_my_commands([
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/client/bot.py", line 3702, in set_my_commands
+bot-1  |     return await self(call, request_timeout=request_timeout)
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/client/bot.py", line 485, in __call__
+bot-1  |     return await self.session(self, method, timeout=request_timeout)
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/client/session/base.py", line 254, in __call__
+bot-1  |     return cast(TelegramType, await middleware(bot, method))
+bot-1  |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/client/session/aiohttp.py", line 185, in make_request
+bot-1  |     response = self.check_response(
+bot-1  |                ^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/client/session/base.py", line 126, in check_response
+bot-1  |     raise TelegramUnauthorizedError(method=method, message=description)
+bot-1  | aiogram.exceptions.TelegramUnauthorizedError: Telegram server says - Unauthorized
+bot-1  | ERROR:asyncio:Unclosed client session
+bot-1  | client_session: <aiohttp.client.ClientSession object at 0x7d0b12544490>
+bot-1  | ERROR:asyncio:Unclosed connector
+bot-1  | connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x7d0b1263ecf0>, 32560.694167231)])']
+bot-1  | connector: <aiohttp.connector.TCPConnector object at 0x7d0b12798d90>
+bot-1 exited with code 1
