@@ -1,7 +1,7 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ForceReply
 from aiogram.utils.media_group import MediaGroupBuilder
-from app.models import BotMessage, Artifact
+from app.models import BotMessage, Artifact, artifact_tags, Tag
 from app.llm import summarize_text
 from app.services.memory import get_active_project
 from app.services.memory import list_projects as list_all_projects
@@ -9,6 +9,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from app.db import session_scope
 import asyncio
 from typing import cast
+import sqlalchemy as sa
 
 router = Router()
 
@@ -39,7 +40,7 @@ async def ans_save(cb: CallbackQuery):
         # нужен проект
         target_pid = bm.project_id
         if not target_pid:
-            proj = await get_active_project(st, cb.from_user.id)
+            proj = await get_active_project(st, cb.from_user.id if cb.from_user else 0)
             if proj:
                 target_pid = proj.id
             else:
@@ -62,6 +63,10 @@ async def ans_save(cb: CallbackQuery):
         bm.saved = True
         st.add(bm)
         await st.commit()
+        
+    # После сохранения предлагаем добавить теги
+    if cb.message and isinstance(cb.message, Message):
+        await cb.message.answer("Теги для этого ответа (через запятую):", reply_markup=ForceReply(selective=True))
     await cb.answer("Сохранено ✅")
 
 @router.callback_query(F.data.startswith("ans:sum:"))
@@ -86,7 +91,7 @@ async def ans_summary(cb: CallbackQuery):
         # Определяем проект для сохранения
         target_pid = bm.project_id
         if not target_pid:
-            proj = await get_active_project(st, cb.from_user.id)
+            proj = await get_active_project(st, cb.from_user.id if cb.from_user else 0)
             if proj:
                 target_pid = proj.id
             else:
@@ -171,3 +176,70 @@ async def ans_del(cb: CallbackQuery):
         except:
             pass
     await cb.answer()
+
+# --- TAG: запросить теги через ForceReply ---
+@router.callback_query(F.data.startswith("ans:tag:"))
+async def ans_tag(cb: CallbackQuery):
+    if not cb.data:
+        return await cb.answer("Invalid data")
+    msg_id = int(cb.data.split(":")[-1])
+    # Покажем ForceReply; саму привязку сделаем по "последнему BotMessage пользователя" (MVP)
+    if cb.message and isinstance(cb.message, Message):
+        await cb.message.answer("Теги для этого ответа (через запятую):", reply_markup=ForceReply(selective=True))
+    await cb.answer()
+
+# --- Обработчик ответа с тегами ---
+@router.message(F.reply_to_message & F.reply_to_message.text.startswith("Теги для этого ответа"))
+async def tags_apply(message: Message):
+    tags_raw = (message.text or "")
+    new_tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
+    if not new_tags:
+        return await message.answer("Пустые теги. Введи через запятую, например: api,db,infra")
+
+    async with session_scope() as st:
+        # Найдём последний BotMessage этого пользователя (MVP-способ)
+        bm = (await st.execute(
+            sa.select(BotMessage).where(BotMessage.user_id == (message.from_user.id if message.from_user else 0))
+              .order_by(BotMessage.created_at.desc()).limit(1)
+        )).scalars().first()
+        if not bm:
+            return await message.answer("Не нашёл сообщение для назначения тегов.")
+
+        # Гарантируем, что есть артефакт для сохранения тегов
+        text = message.reply_to_message and (message.reply_to_message.text or message.reply_to_message.caption) or ""
+        target_pid = bm.project_id
+        if not target_pid:
+            proj = await get_active_project(st, message.from_user.id if message.from_user else 0)
+            if proj: 
+                target_pid = proj.id
+
+        if not bm.saved or not bm.artifact_id:
+            if not target_pid:
+                return await message.answer("Сначала выбери проект в Actions → Projects.")
+            base = Artifact(project_id=target_pid, kind="answer", title="Chat answer", raw_text=text, pinned=False)
+            st.add(base)
+            await st.flush()
+            bm.artifact_id = base.id
+            bm.saved = True
+            st.add(bm)
+        else:
+            base = await st.get(Artifact, bm.artifact_id)
+
+        # Перезапишем теги в artifact_tags
+        await st.execute(sa.delete(artifact_tags).where(artifact_tags.c.artifact_id == bm.artifact_id))
+        if new_tags:
+            # Для каждого тега создаем запись в таблице tags, если её ещё нет
+            for tag_name in new_tags:
+                # Проверяем, существует ли тег
+                existing_tag = await st.execute(sa.select(Tag).where(Tag.name == tag_name))
+                if not existing_tag.scalar_one_or_none():
+                    # Создаем новый тег
+                    new_tag = Tag(name=tag_name)
+                    st.add(new_tag)
+            await st.flush()
+            
+            # Добавляем связи тегов с артефактом
+            await st.execute(sa.insert(artifact_tags), [{"artifact_id": bm.artifact_id, "tag_name": t} for t in new_tags])
+        await st.commit()
+
+    await message.answer(f"🏷 Теги обновлены: {', '.join(new_tags)}")

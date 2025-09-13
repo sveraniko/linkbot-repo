@@ -11,7 +11,7 @@ from app.services.memory import (
     get_active_project, set_context_filters,
     get_preferred_model, set_preferred_model, gather_context,
     list_projects, get_linked_project_ids, get_active_project,
-    link_toggle_project, set_active_project
+    link_toggle_project, set_active_project, get_chat_flags, _ensure_user_state
 )
 from app.llm import ask_llm
 from app.models import Project
@@ -194,17 +194,6 @@ async def quiet_toggle(cb: CallbackQuery):
         await cb.message.answer(f"Quiet mode: {'ON' if newv else 'OFF'}")
     await cb.answer()
 
-@router.callback_query(F.data == "scope:toggle")
-async def scope_toggle(cb: CallbackQuery):
-    from app.db import session_scope
-    from app.services.memory import toggle_scope
-    async with session_scope() as st:
-        newv = await toggle_scope(st, cb.from_user.id if cb.from_user else 0)
-        await st.commit()
-    if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer(f"Scope: {newv}")
-    await cb.answer()
-
 # Новые обработчики для Sources
 def build_sources_kb(current: str) -> InlineKeyboardMarkup:
     opts = ["active", "linked", "all", "global"]
@@ -214,7 +203,6 @@ def build_sources_kb(current: str) -> InlineKeyboardMarkup:
 @router.callback_query(F.data == "sources:toggle")
 async def sources_toggle(cb: CallbackQuery):
     async with session_scope() as st:
-        from app.services.memory import get_chat_flags
         _, _, current, _ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
     kb = build_sources_kb(current)
     if cb.message and isinstance(cb.message, Message):
@@ -227,12 +215,39 @@ async def sources_set(cb: CallbackQuery):
         return await cb.answer("Invalid data")
     _, _, val = cb.data.split(":")
     async with session_scope() as st:
-        from app.services.memory import _ensure_user_state
         stt = await _ensure_user_state(st, cb.from_user.id if cb.from_user else 0)
         stt.sources_mode = val
         await st.commit()
     if cb.message and isinstance(cb.message, Message):
         await cb.message.answer(f"Sources: {val}")
+    await cb.answer()
+
+# Новые обработчики для Scope
+def build_scope_kb(current: str) -> InlineKeyboardMarkup:
+    opts = ["auto", "project", "global"]
+    row = [InlineKeyboardButton(text=("• "+o if o==current else o), callback_data=f"scope:set:{o}") for o in opts]
+    return InlineKeyboardMarkup(inline_keyboard=[row])
+
+@router.callback_query(F.data == "scope:toggle")
+async def scope_toggle(cb: CallbackQuery):
+    async with session_scope() as st:
+        _, _, _, current = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+    kb = build_scope_kb(current)
+    if cb.message and isinstance(cb.message, Message):
+        await cb.message.answer("Выбери область ответа (Scope):", reply_markup=kb)
+    await cb.answer()
+
+@router.callback_query(F.data.startswith("scope:set:"))
+async def scope_set(cb: CallbackQuery):
+    if not cb.data:
+        return await cb.answer("Invalid data")
+    _, _, val = cb.data.split(":")
+    async with session_scope() as st:
+        stt = await _ensure_user_state(st, cb.from_user.id if cb.from_user else 0)
+        stt.scope_mode = val
+        await st.commit()
+    if cb.message and isinstance(cb.message, Message):
+        await cb.message.answer(f"Scope: {val}")
     await cb.answer()
 
 # --- Projects list / link/unlink / activate ---
