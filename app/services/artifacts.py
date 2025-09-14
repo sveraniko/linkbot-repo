@@ -39,14 +39,26 @@ async def create_note(session: AsyncSession, project: Project, title: str, text:
     return art
 
 async def create_import(session: AsyncSession, project: Project, title: str, text: str, chunk_size: int, overlap: int, tags: Optional[List[str]] = None, uri: Optional[str] = None):
+    from sqlalchemy import insert
+    from app.models import Artifact, Chunk, artifact_tags
+    
     art = Artifact(project_id=project.id, kind="import", title=title, raw_text=text)
-    if tags:
-        art.tags = await _ensure_tags(session, tags)
     if uri:
         art.uri = uri
     session.add(art)
     await session.flush()
     
+    # ✅ Запись тегов
+    if tags:
+        # Ensure tags exist in the tags table first
+        tag_entities = await _ensure_tags(session, tags)
+        # Then create the associations in artifact_tags
+        rows = [{"artifact_id": art.id, "tag_name": t.name}
+                for t in tag_entities]
+        if rows:
+            await session.execute(insert(artifact_tags).values(rows))
+    
+    # дальше — чанки
     chunks = make_chunks(text, chunk_size, overlap)
     for idx, ch in enumerate(chunks):
         token_count = count_tokens(ch)

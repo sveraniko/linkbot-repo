@@ -9,6 +9,8 @@ from app.services.memory import (
     get_active_project, get_preferred_model, get_context_filters_state, count_artifacts,
     get_chat_flags, get_linked_project_ids, list_projects
 )
+from app.handlers.keyboard import build_reply_kb
+from html import escape
 
 router = Router()
 
@@ -22,7 +24,7 @@ async def render_status(st: AsyncSession, user_id: int) -> str:
     linked_names = [all_projects.get(pid, str(pid)) for pid in linked_ids]
     if proj:
         n = await count_artifacts(st, proj)
-        p = f"<b>{proj.name}</b> (артефактов: {n})"
+        p = f"<b>{escape(proj.name)}</b> (артефактов: {n})"
     else:
         p = "— не выбран —"
     return (
@@ -43,4 +45,6 @@ async def status_cmd(message: Message):
     async with session_scope() as st:
         if message.from_user:
             text = await render_status(st, message.from_user.id)
-            await message.answer(text)
+            # Get chat_on flag to rebuild keyboard with correct state
+            chat_on, *_ = await get_chat_flags(st, message.from_user.id)
+            await message.answer(text, reply_markup=build_reply_kb(chat_on))

@@ -18,6 +18,7 @@ from app.tokenizer import make_chunks, count_tokens
 import logging
 import tempfile
 from typing import List, Optional
+from html import escape
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -96,7 +97,7 @@ async def import_zip_archive(message: Message, session: AsyncSession = get_sessi
         blob_tags = tags + ['zip', 'blob']
         await create_import(
             st, proj,
-            title=f"ZIP Archive: {doc.file_name}",
+            title=f"ZIP Archive: {escape(doc.file_name)}",
             text=f"ZIP archive with {stats['total_files']} files. Text files: {stats['text_files']}, Binary files: {stats['binary_files']}",
             chunk_size=settings.chunk_size,
             overlap=settings.chunk_overlap,
@@ -143,8 +144,8 @@ async def import_zip_archive(message: Message, session: AsyncSession = get_sessi
         # Send summary
         tags_str = ', '.join(tags) if tags else 'none'
         await message.answer(
-            f"ZIP archive imported to project <b>{proj.name}</b>\n\n"
-            f"Archive: {doc.file_name}\n"
+            f"ZIP archive imported to project <b>{escape(proj.name)}</b>\n\n"
+            f"Archive: {escape(doc.file_name)}\n"
             f"Files processed: {processed_count} of {stats['text_files']} text files\n"
             f"Tags: {tags_str}\n"
             f"Archive URI: {zip_uri or '—'}\n\n"
@@ -208,7 +209,7 @@ async def generate_zip_archive(message: Message, session: AsyncSession = get_ses
         zip_data = make_zip(generated_files)
         
         # Save ZIP to MinIO
-        zip_filename = f"generated_{proj.name}_{len(generated_files)}_files.zip"
+        zip_filename = f"generated_{escape(proj.name)}_{len(generated_files)}_files.zip"
         zip_uri = await save_file(zip_filename, zip_data)
         
         # Create artifact for generated ZIP
@@ -232,8 +233,8 @@ async def generate_zip_archive(message: Message, session: AsyncSession = get_ses
         
         tags_str = ', '.join(tags) if tags else 'none'
         caption = (
-            f"Generated archive for project <b>{proj.name}</b>\n\n"
-            f"Task: {task_description}\n"
+            f"Generated archive for project <b>{escape(proj.name)}</b>\n\n"
+            f"Task: {escape(task_description)}\n"
             f"Files: {len(generated_files)}\n"
             f"Tags: {tags_str}\n"
             f"URI: {zip_uri}\n\n"
@@ -299,7 +300,7 @@ async def generate_single_file_handler(message: Message, session: AsyncSession =
         
         await create_import(
             st, proj,
-            title=f"Generated File: {file_path}",
+            title=f"Generated File: {escape(file_path)}",
             text=file_content,
             chunk_size=settings.chunk_size,
             overlap=settings.chunk_overlap,
@@ -316,9 +317,9 @@ async def generate_single_file_handler(message: Message, session: AsyncSession =
         )
         
         caption = (
-            f"Generated file for project <b>{proj.name}</b>\n\n"
-            f"Path: {file_path}\n"
-            f"Task: {task_description}\n"
+            f"Generated file for project <b>{escape(proj.name)}</b>\n\n"
+            f"Path: {escape(file_path)}\n"
+            f"Task: {escape(task_description)}\n"
             f"Size: {len(file_content)} characters\n"
             f"URI: {file_uri}"
         )
@@ -398,7 +399,7 @@ async def diff_zip_archives(message: Message, session: AsyncSession = get_sessio
         summary, diff_details = diff_archives(old_zip_data, new_zip_data)
         
         # Create full diff text
-        full_diff = f"Comparison between {latest_zip_artifact.title} and {doc.file_name}\n\n"
+        full_diff = f"Comparison between {escape(latest_zip_artifact.title)} and {escape(doc.file_name)}\n\n"
         full_diff += summary + "\n\n"
         full_diff += "DETAILED DIFF:\n" + "="*50 + "\n"
         
@@ -408,7 +409,7 @@ async def diff_zip_archives(message: Message, session: AsyncSession = get_sessio
             full_diff += file_diff
             
         # Save diff to MinIO
-        diff_filename = f"diff_{proj.name}_{doc.file_name}.txt"
+        diff_filename = f"diff_{escape(proj.name)}_{escape(doc.file_name)}.txt"
         diff_uri = await save_file(diff_filename, full_diff.encode('utf-8'))
         
         # Gather context for analysis
@@ -420,7 +421,7 @@ async def diff_zip_archives(message: Message, session: AsyncSession = get_sessio
         # Create diff artifact
         await create_import(
             st, proj,
-            title=f"Diff: {latest_zip_artifact.title} vs {doc.file_name}",
+            title=f"Diff: {escape(latest_zip_artifact.title)} vs {escape(doc.file_name)}",
             text=full_diff[:10000] + ("..." if len(full_diff) > 10000 else ""),  # Truncate for storage
             chunk_size=settings.chunk_size,
             overlap=settings.chunk_overlap,

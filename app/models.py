@@ -82,6 +82,10 @@ class UserState(Base):
     context_tags: Mapped[str | None] = mapped_column(String(256))
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     last_panel_msg_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_doc_file_id: Mapped[str | None] = mapped_column(String(128))
+    last_doc_name: Mapped[str | None] = mapped_column(String(256))
+    last_doc_mime: Mapped[str | None] = mapped_column(String(64))
+    last_doc_uploaded_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))
 
 class Repo(Base):
     __tablename__ = "repos"

@@ -22,3 +22,15 @@ async def show_panel(st: AsyncSession, bot: Bot, chat_id: int, user_id: int, tex
     stt.last_panel_msg_id = sent.message_id
     await st.commit()
     return sent
+
+async def clear_panel(st: AsyncSession, bot: Bot, chat_id: int, user_id: int):
+    from app.services.memory import _ensure_user_state
+    stt = await _ensure_user_state(st, user_id)
+    old_id = stt.last_panel_msg_id
+    if old_id:
+        try:
+            await bot.delete_message(chat_id, old_id)
+        except Exception:
+            pass
+        stt.last_panel_msg_id = None
+        await st.flush()

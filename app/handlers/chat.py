@@ -10,8 +10,12 @@ from app.services.memory import (
 )
 from app.models import BotMessage
 from app.llm import ask_llm
+from html import escape
 
 router = Router()
+
+# Префикс для запроса тегов
+TAG_PROMPT_PREFIX = "Свои теги (через запятую)"
 
 def answer_kb(msg_id: int, saved: bool):
     # обязательные кнопки: Save / Summary / Tag / Delete / Refine
@@ -31,6 +35,14 @@ async def on_free_text(message: Message):
         if not message.from_user:
             return
         
+        # Если это ответ на наш форс-промпт тегов — пропускаем,
+        # пусть обработает tags_free_reply
+        if message.reply_to_message and (
+            (message.reply_to_message.text or "").startswith(TAG_PROMPT_PREFIX) or
+            (message.reply_to_message.text or "").startswith("Свои теги для импорта")
+        ):
+            return
+
         chat_on, quiet_on, sources_mode, scope_mode = await get_chat_flags(st, message.from_user.id)
         if quiet_on:
             return
@@ -66,7 +78,7 @@ async def on_free_text(message: Message):
         # штамп
         from app.services.memory import list_projects
         names = {p.id: p.name for p in await list_projects(st)}
-        stamp = f"\n\n<i>Project: {proj.name if proj else '—'} • Scope: {scope_mode} • Sources: {sources_mode} • Model: {model}</i>"
+        stamp = f"\n\n<i>Project: {escape(proj.name) if proj else '—'} • Scope: {scope_mode} • Sources: {sources_mode} • Model: {model}</i>"
 
         sent = await message.answer(answer + stamp)
         bm = BotMessage(

@@ -58,6 +58,8 @@ async def repo_list_open(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("repo:sync:"))
 async def repo_sync_cb(cb: CallbackQuery):
+    from app.handlers.keyboard import build_reply_kb
+    from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
     alias = cb.data.split(":")[-1]
@@ -65,18 +67,24 @@ async def repo_sync_cb(cb: CallbackQuery):
     async with session_scope() as st:
         out = await repo_sync(st, cb.from_user.id if cb.from_user else 0, alias, token=token)
         await st.commit()
+        # Get chat_on flag to rebuild keyboard with correct state
+        chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
     if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer(f"<code>{out[:3500]}</code>")
+        await cb.message.answer(f"<code>{out[:3500]}</code>", reply_markup=build_reply_kb(chat_on))
     await cb.answer()
 
 @router.callback_query(F.data.startswith("repo:rm:"))
 async def repo_rm_cb(cb: CallbackQuery):
+    from app.handlers.keyboard import build_reply_kb
+    from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
     alias = cb.data.split(":")[-1]
     async with session_scope() as st:
         await repo_remove(st, cb.from_user.id if cb.from_user else 0, alias)
         await st.commit()
+        # Get chat_on flag to rebuild keyboard with correct state
+        chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
     if cb.message and isinstance(cb.message, Message):
-        await cb.message.answer(f"Удалён: {alias}")
+        await cb.message.answer(f"Удалён: {alias}", reply_markup=build_reply_kb(chat_on))
     await cb.answer()
