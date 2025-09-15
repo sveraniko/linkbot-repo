@@ -1,81 +1,46 @@
- ✔ Container project-memory-bot-db-1     Running                                                                   0.0s
- ✔ Container project-memory-bot-minio-1  Running                                                                   0.0s
-INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
-INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
-INFO  [alembic.runtime.migration] Will assume transactional DDL.
-INFO  [alembic.runtime.migration] Will assume transactional DDL.
-[+] Building 2.0s (14/14) FINISHED
- => [internal] load local bake definitions                                                                         0.0s
- => => reading from stdin 540B                                                                                     0.0s
- => [internal] load build definition from Dockerfile                                                               0.0s
- => => transferring dockerfile: 356B                                                                               0.0s
- => [internal] load metadata for docker.io/library/python:3.11-slim                                                1.2s
- => [auth] library/python:pull token for registry-1.docker.io                                                      0.0s
- => [internal] load .dockerignore                                                                                  0.0s
- => => transferring context: 2B                                                                                    0.0s
- => [1/6] FROM docker.io/library/python:3.11-slim@sha256:a0939570b38cddeb861b8e75d20b1c8218b21562b18f301171904b54  0.0s
- => => resolve docker.io/library/python:3.11-slim@sha256:a0939570b38cddeb861b8e75d20b1c8218b21562b18f301171904b54  0.0s
- => [internal] load build context                                                                                  0.0s
- => => transferring context: 53.71kB                                                                               0.0s
- => CACHED [2/6] WORKDIR /app                                                                                      0.0s
- => CACHED [3/6] RUN apt-get update && apt-get install -y --no-install-recommends build-essential git && rm -rf /  0.0s
- => CACHED [4/6] COPY requirements.txt /app/requirements.txt                                                       0.0s
- => CACHED [5/6] RUN pip install --no-cache-dir -r /app/requirements.txt                                           0.0s
- => [6/6] COPY . /app                                                                                              0.1s
- => exporting to image                                                                                             0.3s
- => => exporting layers                                                                                            0.1s
- => => exporting manifest sha256:f87d0491ddc482c3399a313cb8cab7d38cbb7c441e764fb02822853ceba863b5                  0.0s
- => => exporting config sha256:7e762789bcfcc423caabf2b0d375ee1c959526565328fdb7271de16bd989813d                    0.0s
- => => exporting attestation manifest sha256:a3207cf45d0badba4a27cba907a98b542d9e51c0ef1986f13cd7b73752d1002b      0.0s
- => => exporting manifest list sha256:1b2819f3ed1296cd9a6273c85b64614abe7c44ca5f4da21220335f66f00423a7             0.0s
- => => naming to docker.io/library/project-memory-bot-bot:latest                                                   0.0s
- => => unpacking to docker.io/library/project-memory-bot-bot:latest                                                0.1s
- => resolving provenance for metadata file                                                                         0.0s
-[+] Running 4/4
- ✔ project-memory-bot-bot                Built                                                                     0.0s
- ✔ Container project-memory-bot-db-1     Healthy                                                                  10.9s
- ✔ Container project-memory-bot-minio-1  Healthy                                                                  10.9s
- ✔ Container project-memory-bot-bot-1    Started                                                                  11.1s
 bot-1  | INFO:__main__:Starting Telegram bot...
 bot-1  | INFO:__main__:MinIO bucket ensured
 bot-1  | INFO:__main__:Bot commands set successfully
 bot-1  | INFO:__main__:Routers registered, starting polling...
 bot-1  | INFO:aiogram.dispatcher:Start polling
 bot-1  | INFO:aiogram.dispatcher:Run polling for bot @ProjectMemory_Bot id=8386572026 - 'ProjectMemoryBot'
-bot-1  | INFO:aiogram.event:Update id=658400883 is handled. Duration 156 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658400884 is handled. Duration 334 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658400885 is handled. Duration 136 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658400886 is handled. Duration 94 ms by bot id=8386572026
-bot-1  | INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-bot-1  | INFO:aiogram.event:Update id=658400887 is handled. Duration 5152 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658400888 is handled. Duration 102 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658400889 is handled. Duration 46 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658400890 is handled. Duration 47 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658400891 is handled. Duration 108 ms by bot id=8386572026
-bot-1  | sys:1: SAWarning: Column 'artifact_tags.tag_name' is marked as a member of the primary key for table 'artifact_tags', but has no Python-side or server-side default generator indicated, nor does it indicate 'autoincrement=True' or 'nullable=True', and no explicit value is passed.  Primary key columns typically may not store NULL. Note that as of SQLAlchemy 1.1, 'autoincrement=True' must be indicated explicitly for composite (e.g. multicolumn) primary keys if AUTO_INCREMENT/SERIAL/IDENTITY behavior is expected for one of the columns in the primary key. CREATE TABLE statements are impacted by this change as well on most backends.
-bot-1  | INFO:aiogram.event:Update id=658400892 is not handled. Duration 14 ms by bot id=8386572026
-bot-1  | ERROR:aiogram.event:Cause exception while process update id=658400892 by bot id=8386572026
-bot-1  | IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "tag_name" of relation "artifact_tags" violates not-null constraint
-bot-1  | DETAIL:  Failing row contains (2, null).
-bot-1  | [SQL: INSERT INTO artifact_tags (artifact_id) VALUES ($1::INTEGER)]
-bot-1  | [parameters: (2,)]
-bot-1  | (Background on this error at: https://sqlalche.me/e/20/gkpj)
+bot-1  | INFO:aiogram.event:Update id=658401530 is handled. Duration 154 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401531 is handled. Duration 170 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401532 is handled. Duration 186 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401533 is handled. Duration 139 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401534 is handled. Duration 102 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401535 is handled. Duration 147 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401536 is handled. Duration 55 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401537 is handled. Duration 200 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401538 is handled. Duration 113 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401539 is handled. Duration 133 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401540 is not handled. Duration 22 ms by bot id=8386572026
+bot-1  | ERROR:aiogram.event:Cause exception while process update id=658401540 by bot id=8386572026
+bot-1  | ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
+bot-1  | [SQL: SELECT DISTINCT ON (artifacts.id) artifacts.id, artifacts.project_id, artifacts.kind, artifacts.title, artifacts.raw_text, artifacts.uri, artifacts.pinned, artifacts.parent_id, artifacts.created_at
+bot-1  | FROM artifacts
+bot-1  | WHERE artifacts.project_id = $1::INTEGER AND lower(artifacts.title) LIKE $2::VARCHAR ORDER BY artifacts.created_at DESC
+bot-1  |  LIMIT $3::INTEGER OFFSET $4::INTEGER]
+bot-1  | [parameters: (1, '%женщины%', 10, 0)]
+bot-1  | (Background on this error at: https://sqlalche.me/e/20/f405)
 bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 545, in _prepare_and_execute
-bot-1  |     self._rows = deque(await prepared_stmt.fetch(*parameters))
-bot-1  |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/prepared_stmt.py", line 176, in fetch
-bot-1  |     data = await self.__bind_execute(args, 0, timeout)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/prepared_stmt.py", line 267, in __bind_execute
-bot-1  |     data, status, _ = await self.__do_execute(
-bot-1  |                       ^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/prepared_stmt.py", line 256, in __do_execute
-bot-1  |     return await executor(protocol)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "asyncpg/protocol/protocol.pyx", line 206, in bind_execute
-bot-1  | asyncpg.exceptions.NotNullViolationError: null value in column "tag_name" of relation "artifact_tags" violates not-null constraint
-bot-1  | DETAIL:  Failing row contains (2, null).
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 521, in _prepare_and_execute
+bot-1  |     prepared_stmt, attributes = await adapt_connection._prepare(
+bot-1  |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 768, in _prepare
+bot-1  |     prepared_stmt = await self._connection.prepare(
+bot-1  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 635, in prepare
+bot-1  |     return await self._prepare(
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 653, in _prepare
+bot-1  |     stmt = await self._get_statement(
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 432, in _get_statement
+bot-1  |     statement = await self._protocol.prepare(
+bot-1  |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+bot-1  | asyncpg.exceptions.InvalidColumnReferenceError: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
 bot-1  |
 bot-1  | The above exception was the direct cause of the following exception:
 bot-1  |
@@ -98,8 +63,7 @@ bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/pos
 bot-1  |     self._adapt_connection._handle_exception(error)
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
 bot-1  |     raise translated_error from error
-bot-1  | sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.IntegrityError: <class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "tag_name" of relation "artifact_tags" violates not-null constraint
-bot-1  | DETAIL:  Failing row contains (2, null).
+bot-1  | sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
 bot-1  |
 bot-1  | The above exception was the direct cause of the following exception:
 bot-1  |
@@ -161,8 +125,14 @@ bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
 bot-1  |     return await wrapped()
 bot-1  |            ^^^^^^^^^^^^^^^
-bot-1  |   File "/app/app/handlers/answer_actions.py", line 351, in tags_free_reply
-bot-1  |     await st.execute(sa.insert(artifact_tags), [{"artifact_id": bm.artifact_id, "tag": t} for t in tags])
+bot-1  |   File "/app/app/handlers/chat.py", line 31, in on_free_text
+bot-1  |     return await ask_search_reply(message)
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/app/app/handlers/ask.py", line 367, in ask_search_reply
+bot-1  |     await _render_panel(message, st, q=q, page=1)
+bot-1  |   File "/app/app/handlers/ask.py", line 207, in _render_panel
+bot-1  |     res = (await st.execute(base.limit(page_size).offset((page-1)*page_size))).scalars().all()
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
 bot-1  |     result = await greenlet_spawn(
 bot-1  |              ^^^^^^^^^^^^^^^^^^^^^
@@ -172,7 +142,10 @@ bot-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
 bot-1  |     return self._execute_internal(
 bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2251, in _execute_internal
+bot-1  |     result: Result[Any] = compile_state_cls.orm_execute_statement(
+bot-1  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
 bot-1  |     result = conn.execute(
 bot-1  |              ^^^^^^^^^^^^^
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
@@ -209,59 +182,66 @@ bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/pos
 bot-1  |     self._adapt_connection._handle_exception(error)
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
 bot-1  |     raise translated_error from error
-bot-1  | sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "tag_name" of relation "artifact_tags" violates not-null constraint
-bot-1  | DETAIL:  Failing row contains (2, null).
-bot-1  | [SQL: INSERT INTO artifact_tags (artifact_id) VALUES ($1::INTEGER)]
-bot-1  | [parameters: (2,)]
-bot-1  | (Background on this error at: https://sqlalche.me/e/20/gkpj)
-bot-1  | INFO:aiogram.event:Update id=658400893 is not handled. Duration 12 ms by bot id=8386572026
-bot-1  | ERROR:aiogram.event:Cause exception while process update id=658400893 by bot id=8386572026
-bot-1  | IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.ForeignKeyViolationError'>: insert or update on table "artifact_tags" violates foreign key constraint "artifact_tags_tag_name_fkey"
-bot-1  | DETAIL:  Key (tag_name)=(answer) is not present in table "tags".
-bot-1  | [SQL: INSERT INTO artifact_tags (artifact_id, tag_name) VALUES ($1::INTEGER, $2::VARCHAR)]
-bot-1  | [parameters: [(3, 'answer'), (3, 'spec')]]
-bot-1  | (Background on this error at: https://sqlalche.me/e/20/gkpj)
+bot-1  | sqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
+bot-1  | [SQL: SELECT DISTINCT ON (artifacts.id) artifacts.id, artifacts.project_id, artifacts.kind, artifacts.title, artifacts.raw_text, artifacts.uri, artifacts.pinned, artifacts.parent_id, artifacts.created_at
+bot-1  | FROM artifacts
+bot-1  | WHERE artifacts.project_id = $1::INTEGER AND lower(artifacts.title) LIKE $2::VARCHAR ORDER BY artifacts.created_at DESC
+bot-1  |  LIMIT $3::INTEGER OFFSET $4::INTEGER]
+bot-1  | [parameters: (1, '%женщины%', 10, 0)]
+bot-1  | (Background on this error at: https://sqlalche.me/e/20/f405)
+bot-1  | INFO:aiogram.event:Update id=658401541 is handled. Duration 273 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401542 is not handled. Duration 17 ms by bot id=8386572026
+bot-1  | ERROR:aiogram.event:Cause exception while process update id=658401542 by bot id=8386572026
+bot-1  | ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
+bot-1  | [SQL: SELECT DISTINCT ON (artifacts.id) artifacts.id, artifacts.project_id, artifacts.kind, artifacts.title, artifacts.raw_text, artifacts.uri, artifacts.pinned, artifacts.parent_id, artifacts.created_at
+bot-1  | FROM artifacts
+bot-1  | WHERE artifacts.project_id = $1::INTEGER AND artifacts.id IN (SELECT DISTINCT artifact_tags.artifact_id
+bot-1  | FROM artifact_tags JOIN tags ON artifact_tags.tag_name = tags.name
+bot-1  | WHERE lower(tags.name) LIKE $2::VARCHAR) ORDER BY artifacts.created_at DESC
+bot-1  |  LIMIT $3::INTEGER OFFSET $4::INTEGER]
+bot-1  | [parameters: (1, '%woman%', 10, 0)]
+bot-1  | (Background on this error at: https://sqlalche.me/e/20/f405)
 bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 573, in _executemany
-bot-1  |     return await self._connection.executemany(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 390, in executemany
-bot-1  |     return await self._executemany(command, args, timeout)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 1988, in _executemany
-bot-1  |     result, _ = await self._do_execute(
-bot-1  |                 ^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 2024, in _do_execute
-bot-1  |     result = await executor(stmt, None)
-bot-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "asyncpg/protocol/protocol.pyx", line 268, in bind_execute_many
-bot-1  | asyncpg.exceptions.ForeignKeyViolationError: insert or update on table "artifact_tags" violates foreign key constraint "artifact_tags_tag_name_fkey"
-bot-1  | DETAIL:  Key (tag_name)=(answer) is not present in table "tags".
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 521, in _prepare_and_execute
+bot-1  |     prepared_stmt, attributes = await adapt_connection._prepare(
+bot-1  |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 768, in _prepare
+bot-1  |     prepared_stmt = await self._connection.prepare(
+bot-1  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 635, in prepare
+bot-1  |     return await self._prepare(
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 653, in _prepare
+bot-1  |     stmt = await self._get_statement(
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 432, in _get_statement
+bot-1  |     statement = await self._protocol.prepare(
+bot-1  |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+bot-1  | asyncpg.exceptions.InvalidColumnReferenceError: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
 bot-1  |
 bot-1  | The above exception was the direct cause of the following exception:
 bot-1  |
 bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1936, in _exec_single_context
-bot-1  |     self.dialect.do_executemany(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 948, in do_executemany
-bot-1  |     cursor.executemany(statement, parameters)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 585, in executemany
-bot-1  |     return self._adapt_connection.await_(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+bot-1  |     self.dialect.do_execute(
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+bot-1  |     cursor.execute(statement, parameters)
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
+bot-1  |     self._adapt_connection.await_(
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
 bot-1  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
 bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
 bot-1  |     value = await result
 bot-1  |             ^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 577, in _executemany
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
 bot-1  |     self._handle_exception(error)
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
 bot-1  |     self._adapt_connection._handle_exception(error)
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
 bot-1  |     raise translated_error from error
-bot-1  | sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.IntegrityError: <class 'asyncpg.exceptions.ForeignKeyViolationError'>: insert or update on table "artifact_tags" violates foreign key constraint "artifact_tags_tag_name_fkey"
-bot-1  | DETAIL:  Key (tag_name)=(answer) is not present in table "tags".
+bot-1  | sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
 bot-1  |
 bot-1  | The above exception was the direct cause of the following exception:
 bot-1  |
@@ -323,8 +303,14 @@ bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
 bot-1  |     return await wrapped()
 bot-1  |            ^^^^^^^^^^^^^^^
-bot-1  |   File "/app/app/handlers/answer_actions.py", line 285, in ans_tag_done
-bot-1  |     await st.execute(sa.insert(artifact_tags), [{"artifact_id": bm.artifact_id, "tag_name": t} for t in tags])
+bot-1  |   File "/app/app/handlers/chat.py", line 31, in on_free_text
+bot-1  |     return await ask_search_reply(message)
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/app/app/handlers/ask.py", line 367, in ask_search_reply
+bot-1  |     await _render_panel(message, st, q=q, page=1)
+bot-1  |   File "/app/app/handlers/ask.py", line 207, in _render_panel
+bot-1  |     res = (await st.execute(base.limit(page_size).offset((page-1)*page_size))).scalars().all()
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
 bot-1  |     result = await greenlet_spawn(
 bot-1  |              ^^^^^^^^^^^^^^^^^^^^^
@@ -334,7 +320,10 @@ bot-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
 bot-1  |     return self._execute_internal(
 bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2251, in _execute_internal
+bot-1  |     result: Result[Any] = compile_state_cls.orm_execute_statement(
+bot-1  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
 bot-1  |     result = conn.execute(
 bot-1  |              ^^^^^^^^^^^^^
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
@@ -353,27 +342,48 @@ bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.
 bot-1  |     self._handle_dbapi_exception(
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
 bot-1  |     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1936, in _exec_single_context
-bot-1  |     self.dialect.do_executemany(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 948, in do_executemany
-bot-1  |     cursor.executemany(statement, parameters)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 585, in executemany
-bot-1  |     return self._adapt_connection.await_(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+bot-1  |     self.dialect.do_execute(
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+bot-1  |     cursor.execute(statement, parameters)
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
+bot-1  |     self._adapt_connection.await_(
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
 bot-1  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
 bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
 bot-1  |     value = await result
 bot-1  |             ^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 577, in _executemany
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
 bot-1  |     self._handle_exception(error)
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
 bot-1  |     self._adapt_connection._handle_exception(error)
 bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
 bot-1  |     raise translated_error from error
-bot-1  | sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.ForeignKeyViolationError'>: insert or update on table "artifact_tags" violates foreign key constraint "artifact_tags_tag_name_fkey"
-bot-1  | DETAIL:  Key (tag_name)=(answer) is not present in table "tags".
-bot-1  | [SQL: INSERT INTO artifact_tags (artifact_id, tag_name) VALUES ($1::INTEGER, $2::VARCHAR)]
-bot-1  | [parameters: [(3, 'answer'), (3, 'spec')]]
-bot-1  | (Background on this error at: https://sqlalche.me/e/20/gkpj)
+bot-1  | sqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
+bot-1  | [SQL: SELECT DISTINCT ON (artifacts.id) artifacts.id, artifacts.project_id, artifacts.kind, artifacts.title, artifacts.raw_text, artifacts.uri, artifacts.pinned, artifacts.parent_id, artifacts.created_at
+bot-1  | FROM artifacts
+bot-1  | WHERE artifacts.project_id = $1::INTEGER AND artifacts.id IN (SELECT DISTINCT artifact_tags.artifact_id
+bot-1  | FROM artifact_tags JOIN tags ON artifact_tags.tag_name = tags.name
+bot-1  | WHERE lower(tags.name) LIKE $2::VARCHAR) ORDER BY artifacts.created_at DESC
+bot-1  |  LIMIT $3::INTEGER OFFSET $4::INTEGER]
+bot-1  | [parameters: (1, '%woman%', 10, 0)]
+bot-1  | (Background on this error at: https://sqlalche.me/e/20/f405)
+bot-1  | INFO:aiogram.event:Update id=658401543 is handled. Duration 80 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401544 is handled. Duration 664 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401545 is handled. Duration 147 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401546 is handled. Duration 178 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401547 is handled. Duration 124 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401548 is handled. Duration 124 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401549 is handled. Duration 68 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401550 is handled. Duration 147 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401551 is handled. Duration 238 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401552 is handled. Duration 237 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401553 is handled. Duration 117 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401554 is handled. Duration 52 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401555 is handled. Duration 140 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401556 is handled. Duration 101 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401557 is handled. Duration 103 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401558 is handled. Duration 65 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401559 is handled. Duration 54 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658401560 is handled. Duration 192 ms by bot id=8386572026

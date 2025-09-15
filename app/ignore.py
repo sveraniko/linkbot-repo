@@ -37,6 +37,19 @@ def load_pmignore(root: Path, extra_patterns: Iterable[str] | None = None) -> Pa
         patts += list(extra_patterns)
     return PathSpec.from_lines("gitwildmatch", patts)
 
+def should_ignore(filename: str, root: Path | None = None) -> bool:
+    """
+    Check if a file should be ignored based on .pmignore patterns.
+    If root is not provided, uses default patterns only.
+    """
+    if root and root.exists():
+        spec = load_pmignore(root)
+    else:
+        # Use default patterns only
+        spec = PathSpec.from_lines("gitwildmatch", DEFAULT_PMIGNORE.splitlines())
+    
+    return spec.match_file(filename)
+
 def iter_text_files(root: Path, spec: PathSpec):
     for p in root.rglob("*"):
         if p.is_file():

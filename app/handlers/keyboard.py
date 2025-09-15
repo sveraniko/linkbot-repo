@@ -1,97 +1,81 @@
 from __future__ import annotations
 from aiogram import Router, F
-from aiogram.filters import Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+
 from app.db import session_scope
 from app.services.memory import get_chat_flags, set_chat_mode
 
-router = Router()
+router = Router(name="keyboard")
 
-# Кнопка "⚙️ Actions"
 BTN_ACTIONS = "⚙️ Actions"
-BTN_STATUS = "📊 Status"
+BTN_CHAT_ON = "💬 Chat: ON"
+BTN_CHAT_OFF = "😴 Chat: OFF"
+BTN_ASK = "ASK-WIZARD ❓"
+BTN_MEMORY = "🧠 Memory"
 
-def CHAT_LABEL(on: bool) -> str:
-    return "💬 Chat: ON" if on else "💤 Chat: OFF"
+SERVICE_TEXTS = {BTN_ACTIONS, BTN_ASK, BTN_CHAT_ON, BTN_CHAT_OFF, BTN_MEMORY, "Меню", "Menu", "Chat"}
 
-def build_reply_kb(chat_on: bool) -> ReplyKeyboardMarkup:
+def main_reply_kb(chat_on: bool) -> ReplyKeyboardMarkup:
+    chat_label = BTN_CHAT_ON if chat_on else BTN_CHAT_OFF
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=BTN_ACTIONS),
-             KeyboardButton(text=CHAT_LABEL(chat_on)),
-             KeyboardButton(text=BTN_STATUS)]
-        ],
-        resize_keyboard=True
-    )
-
-@router.message(Command("start"))
-async def cmd_start(message: Message):
-    async with session_scope() as st:
-        chat_on, *_ = await get_chat_flags(st, message.from_user.id if message.from_user else 0)
-    await message.answer(
-        "Привет! Клава внизу активна.",
-        reply_markup=build_reply_kb(chat_on)
+        resize_keyboard=True,
+        keyboard=[[
+            KeyboardButton(text=BTN_ACTIONS),
+            KeyboardButton(text=chat_label),
+            KeyboardButton(text=BTN_ASK),
+        ], [
+            KeyboardButton(text=BTN_MEMORY),  # Add Memory button to bottom row
+        ]],
     )
 
 @router.message(F.text == BTN_ACTIONS)
-async def kb_actions(message: Message):
-    from app.db import session_scope
-    from app.services.memory import get_preferred_model
-    from app.ui import show_panel
-    from app.handlers.menu import kb_menu
-    # Delete the original "⚙️ Actions" message to prevent chat clutter
+async def open_actions_from_kb(message: Message):
+    """
+    Открывает твою панель действий по кнопке снизу.
+    Пробуем найти одну из функций меню и вызвать её напрямую.
+    """
+    open_menu = None
     try:
-        await message.delete()
-    except:
-        pass
-    async with session_scope() as st:
-        model = await get_preferred_model(st, message.from_user.id if message.from_user else 0)
-        if message.bot and message.chat and message.from_user:
-            await show_panel(st, message.bot, message.chat.id, message.from_user.id,
-                             "Панель действий:", kb_menu(model))
+        # 1) если у тебя есть такой модуль/ф-ция
+        from app.handlers.menu import menu as open_menu  # noqa: F401
+    except Exception:
+        try:
+            from app.handlers.menu import actions as open_menu  # noqa: F401
+        except Exception:
+            open_menu = None
 
-@router.message(F.text == "/kb_on")
-async def kb_on(message: Message):
-    from app.db import session_scope
-    from app.services.memory import get_chat_flags
-    # Delete the original "/kb_on" message to prevent chat clutter
-    try:
-        await message.delete()
-    except:
-        pass
-    async with session_scope() as st:
-        if message.from_user:
-            chat_on, _, _, _ = await get_chat_flags(st, message.from_user.id)
-            await message.answer("Клавиатура включена.", reply_markup=build_reply_kb(chat_on))
+    if open_menu:
+        return await open_menu(message)
 
-@router.message(F.text == BTN_STATUS)
-async def kb_status(message: Message):
-    from app.handlers.status import render_status
-    from app.db import session_scope
-    # Delete the original "📊 Статус" message to prevent chat clutter
-    try:
-        await message.delete()
-    except:
-        pass
-    async with session_scope() as st:
-        if message.from_user:
-            text = await render_status(st, message.from_user.id)
-            await message.answer(text)
+    # Фоллбек, если прямой вызов не найден:
+    # лучше вернуть подсказку, чем молчать
+    return await message.answer("Открой меню командой /menu")
 
-# Тумблер Chat — отрабатывает на оба текста (ON/OFF)
-@router.message(F.text.in_({"💬 Chat: ON", "💤 Chat: OFF", "Chat", "Чат"}))
+@router.message(F.text.in_({BTN_CHAT_ON, BTN_CHAT_OFF}))
 async def kb_chat_toggle(message: Message):
-    from app.services.memory import set_chat_mode, get_chat_flags
-    from app.db import session_scope
-    # Delete the original chat toggle message to prevent chat clutter
-    try:
-        await message.delete()
-    except:
-        pass
+    """Toggle Chat ON/OFF and rebuild the bottom-row keyboard. Never call LLM here."""
+    if not message.from_user:
+        return
     async with session_scope() as st:
-        if message.from_user:
-            chat_on, _, _, _ = await get_chat_flags(st, message.from_user.id)
-            new_on = not chat_on                 # <-- ВАЖНО: инвертируем
-            await set_chat_mode(st, message.from_user.id, on=new_on)
-            await st.commit()
-            await message.answer(f"Chat mode: {'ON' if new_on else 'OFF'}", reply_markup=build_reply_kb(new_on))  # <-- пересобираем клавиатуру
+        chat_on, *_ = await get_chat_flags(st, message.from_user.id)
+        new_state = not chat_on
+        await set_chat_mode(st, message.from_user.id, on=new_state)
+        await st.commit()
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        await message.answer(
+            f"Чат: {'ON' if new_state else 'OFF'}",
+            reply_markup=main_reply_kb(new_state),
+        )
+
+@router.message(F.text == BTN_MEMORY)
+async def open_memory_from_kb(message: Message):
+    """
+    Открывает панель Memory по кнопке снизу.
+    """
+    from app.handlers.memory_panel import memory_open
+    return await memory_open(message)
+
+__all__ = ["main_reply_kb", "SERVICE_TEXTS", "BTN_ACTIONS", "BTN_CHAT_ON", "BTN_CHAT_OFF", "BTN_ASK", "BTN_MEMORY", "router"]

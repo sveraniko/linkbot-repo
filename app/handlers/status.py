@@ -9,7 +9,7 @@ from app.services.memory import (
     get_active_project, get_preferred_model, get_context_filters_state, count_artifacts,
     get_chat_flags, get_linked_project_ids, list_projects
 )
-from app.handlers.keyboard import build_reply_kb
+from app.handlers.keyboard import main_reply_kb as build_reply_kb
 from html import escape
 
 router = Router()

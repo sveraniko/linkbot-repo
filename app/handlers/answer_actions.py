@@ -1,11 +1,11 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message, ForceReply
+from aiogram.types import CallbackQuery, Message, ForceReply, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.media_group import MediaGroupBuilder
 from app.models import BotMessage, Artifact, artifact_tags, Tag
 from app.llm import summarize_text
-from app.services.memory import get_active_project
+from app.services.memory import get_active_project, get_preferred_model, _ensure_user_state, get_chat_flags
 from app.services.memory import list_projects as list_all_projects
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from app.services.artifacts import get_chunks_by_artifact_ids
 from app.db import session_scope
 import asyncio
 from typing import cast
@@ -26,6 +26,16 @@ TAG_CACHE: dict[int, set[str]] = {}
 
 # --- Теги для импорта (по artifact_id) ---
 IMP_TAG_CACHE: dict[int, set[str]] = {}
+
+
+def answer_actions_kb(msg_id: int):
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="💾 Save", callback_data=f"ans:save:{msg_id}"),
+        InlineKeyboardButton(text="🧷 Summary", callback_data=f"ans:sum:{msg_id}"),
+        InlineKeyboardButton(text="🏷 Tag", callback_data=f"ans:tag:{msg_id}"),
+        InlineKeyboardButton(text="🗑 Delete", callback_data=f"ans:del:{msg_id}"),
+        InlineKeyboardButton(text="🔁 Refine", callback_data=f"ans:refine:{msg_id}"),
+    ]])
 
 
 def _project_pick_kb(msg_id: int, purpose: str, projects):
@@ -51,7 +61,7 @@ def build_tag_kb(tags: list[str], msg_id: int):
 
 @router.callback_query(F.data.startswith("ans:save:"))
 async def ans_save(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
@@ -105,7 +115,7 @@ async def ans_save(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("ans:sum:"))
 async def ans_summary(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
@@ -202,7 +212,7 @@ async def ans_pickproj(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("ans:del:"))
 async def ans_del(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     # удаляем СВОЁ сообщение
     try:
@@ -230,7 +240,7 @@ async def ans_del(cb: CallbackQuery):
 # Заменяем старый обработчик на новый с пресетами
 @router.callback_query(F.data.startswith("ans:tag:"))
 async def ans_tag(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
@@ -264,7 +274,7 @@ async def ans_tag_toggle(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("ans:tagdone:"))
 async def ans_tag_done(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
@@ -332,7 +342,7 @@ async def ans_tag_done(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("ans:tagfree:"))
 async def ans_tag_free(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
@@ -348,7 +358,7 @@ async def ans_tag_free(cb: CallbackQuery):
 # общий фри-ввод тегов для ОТВЕТА (не импорта!)
 @router.message(F.reply_to_message & (F.reply_to_message.text == GENERAL_TAG_PROMPT))
 async def tags_free_reply(message: Message):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     tags = [t.strip() for t in (message.text or "").split(",") if t.strip()]
     if not tags: 
@@ -457,9 +467,10 @@ async def imp_tag_toggle(cb: CallbackQuery):
     IMP_TAG_CACHE[art_id] = cur
     await cb.answer(f"{'+' if tag in cur else '-'} {tag}")
 
+
 @router.callback_query(F.data.startswith("imp:tagdone:"))
 async def imp_tag_done(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
@@ -498,9 +509,10 @@ async def imp_tag_done(cb: CallbackQuery):
     IMP_TAG_CACHE.pop(art_id, None)
     await cb.answer()
 
+
 @router.callback_query(F.data.startswith("imp:tagfree:"))
 async def imp_tag_free(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
@@ -517,7 +529,7 @@ async def imp_tag_free(cb: CallbackQuery):
     F.reply_to_message & F.reply_to_message.text.regexp(r"^Свои теги для импорта #\d+")
 )
 async def imp_tags_free_reply(message: Message):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     import re
     if not message.reply_to_message or not message.reply_to_message.text:
@@ -561,7 +573,7 @@ async def imp_tags_free_reply(message: Message):
 
 @router.callback_query(F.data.startswith("imp:del:"))
 async def imp_del(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
@@ -589,3 +601,74 @@ def build_imp_tag_kb(tags: list[str], art_id: int):
         InlineKeyboardButton(text="✍️ Свои", callback_data=f"imp:tagfree:{art_id}")
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@router.callback_query(F.data.startswith("ans:refine:"))
+async def ans_refine(cb: CallbackQuery):
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
+    if not cb.data:
+        return await cb.answer("Invalid data")
+    msg_id = int(cb.data.split(":")[-1])
+    
+    # Show ForceReply to ask for refinement details
+    if cb.message and isinstance(cb.message, Message):
+        await cb.message.answer("Чем уточнить?", reply_markup=ForceReply(selective=True))
+    await cb.answer()
+
+
+# Handle the refinement reply
+@router.message(F.reply_to_message & F.reply_to_message.text.regexp(r"^Чем уточнить\?"))
+async def refine_reply(message: Message):
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
+    from app.services.memory import get_active_project, gather_context
+    from app.llm import ask_llm
+    from app.config import settings
+    from app.models import BotMessage
+    
+    if not message.reply_to_message or not message.text:
+        return
+        
+    # Get the original BotMessage to retrieve artifact_ids
+    async with session_scope() as st:
+        # Get the most recent BotMessage for this user
+        stmt = sa.select(BotMessage).where(BotMessage.user_id == (message.from_user.id if message.from_user else 0)).order_by(BotMessage.created_at.desc()).limit(1)
+        result = await st.execute(stmt)
+        bm = result.scalar_one_or_none()
+        
+        if not bm:
+            chat_on, *_ = await get_chat_flags(st, message.from_user.id if message.from_user else 0)
+            return await message.answer("Не найдено сообщение для уточнения.", reply_markup=build_reply_kb(chat_on))
+            
+        proj = await get_active_project(st, message.from_user.id if message.from_user else 0)
+        if not proj:
+            chat_on, *_ = await get_chat_flags(st, message.from_user.id if message.from_user else 0)
+            return await message.answer("Сначала выберите проект: <code>/project &lt;name&gt;</code>", reply_markup=build_reply_kb(chat_on))
+            
+        # Get context - if we have selected artifacts, use them, otherwise use default context
+        stt = await _ensure_user_state(st, message.from_user.id if message.from_user else 0)
+        sel_ids = [int(x) for x in (stt.selected_artifact_ids or "").split(",") if x.strip().isdigit()]
+        
+        if sel_ids:
+            # Use selected artifacts for context
+            chunks = await get_chunks_by_artifact_ids(st, sel_ids, limit=200)
+        else:
+            # Use default context gathering
+            chunks = await gather_context(st, proj, user_id=message.from_user.id if message.from_user else 0, max_chunks=settings.project_max_chunks)
+            
+        model = await get_preferred_model(st, message.from_user.id if message.from_user else 0)
+        answer = await ask_llm(message.text, chunks, model=model)
+        
+        chat_on, *_ = await get_chat_flags(st, message.from_user.id if message.from_user else 0)
+        sent_msg = await message.answer(answer, reply_markup=build_reply_kb(chat_on))
+        
+        # Save the answer to BotMessage for future actions
+        new_bm = BotMessage(
+            chat_id=message.chat.id if message.chat else 0,
+            user_id=message.from_user.id if message.from_user else 0,
+            tg_message_id=sent_msg.message_id if sent_msg else 0,
+            reply_to_user_msg_id=message.message_id,
+            project_id=proj.id,
+            saved=False
+        )
+        st.add(new_bm)
+        await st.commit()

@@ -4,6 +4,33 @@ from app.models import Project, Artifact, Chunk, Tag
 from app.tokenizer import make_chunks, count_tokens
 from typing import Optional, List
 
+async def get_chunks_by_artifact_ids(session: AsyncSession, artifact_ids: list[int], limit: int = 200) -> list[str]:
+    """Get text chunks for specific artifact IDs."""
+    from sqlalchemy import select
+    from app.models import Chunk
+    
+    # Get chunks for the specified artifacts, ordered by artifact_id and chunk index
+    stmt = select(Chunk).where(Chunk.artifact_id.in_(artifact_ids)).order_by(Chunk.artifact_id, Chunk.idx).limit(limit)
+    result = await session.execute(stmt)
+    chunks = result.scalars().all()
+    
+    # Return just the text content
+    return [chunk.text for chunk in chunks]
+
+
+async def approx_tokens_for_selection(session: AsyncSession, artifact_ids: list[int], model: str) -> int:
+    """Approximate token count for selected artifacts."""
+    # Get chunks for the specified artifacts
+    chunks = await get_chunks_by_artifact_ids(session, artifact_ids, limit=2000)
+    
+    # Calculate approximate tokens
+    toks = 0
+    for text in chunks:
+        # If chunk has tokens field, use it; otherwise estimate as len(text)/4
+        toks += max(1, len(text) // 4)
+    return toks
+
+
 async def get_or_create_project(session: AsyncSession, name: str) -> Project:
     res = await session.execute(select(Project).where(Project.name == name))
     proj = res.scalar_one_or_none()

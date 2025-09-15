@@ -58,7 +58,7 @@ async def repo_list_open(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("repo:sync:"))
 async def repo_sync_cb(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")
@@ -75,7 +75,7 @@ async def repo_sync_cb(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("repo:rm:"))
 async def repo_rm_cb(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not cb.data:
         return await cb.answer("Invalid data")

@@ -30,13 +30,10 @@ router = Router()
 def kb_menu(model: str) -> InlineKeyboardMarkup:
     """New Actions panel layout as specified"""
     rows = [
-        # Row 1: Status, Memory, Sources, Quiet, Projects
+        # Row 1: Status and Memory
         [
             InlineKeyboardButton(text="📊 Статус", callback_data="status:show"),
             InlineKeyboardButton(text="🧠 Memory", callback_data="mem:main"),
-            InlineKeyboardButton(text="🗃 Sources", callback_data="sources:toggle"),
-            InlineKeyboardButton(text="🤫 Quiet", callback_data="quiet:toggle"),
-            InlineKeyboardButton(text="📂 Projects", callback_data="projects:list"),
         ],
         # Row 2: Import and Scope
         [
@@ -265,10 +262,21 @@ async def wizard_import(cb: CallbackQuery):
             await cb.message.answer("Нет «последнего файла». Пришлите .txt/.md/.json/.zip и повторите.", reply_markup=build_reply_kb(chat_on))
             return await cb.answer()
 
-        # получаем bytes файла напрямую по ID (более надежный способ)
+        # получаем bytes файла
         try:
-            # Используем прямую загрузку по file_id вместо get_file + download_file
-            fb = await cb.message.bot.download(stt.last_doc_file_id)
+            file = await cb.message.bot.get_file(stt.last_doc_file_id)
+            if not file.file_path:
+                # Delete the panel first
+                try:
+                    await cb.message.delete()
+                except:
+                    pass
+                # Get chat_on flag to rebuild keyboard with correct state
+                chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+                await cb.message.answer("Не удалось получить путь к файлу", reply_markup=build_reply_kb(chat_on))
+                return await cb.answer()
+                
+            fb = await cb.message.bot.download_file(file.file_path)
             if not fb:
                 # Delete the panel first
                 try:
@@ -277,7 +285,7 @@ async def wizard_import(cb: CallbackQuery):
                     pass
                 # Get chat_on flag to rebuild keyboard with correct state
                 chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-                await cb.message.answer("Не удалось скачать файл (download вернул None)", reply_markup=build_reply_kb(chat_on))
+                await cb.message.answer("Не удалось скачать файл", reply_markup=build_reply_kb(chat_on))
                 return await cb.answer()
                 
             data = fb.read()
@@ -379,14 +387,6 @@ async def wizard_import(cb: CallbackQuery):
                                 f"Автотеги: {', '.join([t for t in extra_tags if t])}",
                                 reply_markup=kb)
     await cb.answer()
-
-@router.callback_query(F.data == "mem:import_last")
-async def mem_import_last(cb: CallbackQuery):
-    return await wizard_import(cb)
-
-@router.callback_query(F.data == "wizard:import_last")
-async def wizard_import_last(cb: CallbackQuery):
-    return await wizard_import(cb)
 
 # ── Quick ASK templates ────────────────────────────────────────────────────────
 
@@ -663,3 +663,8 @@ async def projects_create(message: Message):
         # Get chat_on flag to rebuild keyboard with correct state
         chat_on, *_ = await get_chat_flags(st, message.from_user.id if message.from_user else 0)
         await message.answer(f"Проект создан и активирован: <b>{escape(name)}</b>", reply_markup=build_reply_kb(chat_on))
+
+
+@router.callback_query(F.data == "mem:import_last")
+async def mem_import_last(cb: CallbackQuery):
+    return await wizard_import(cb)

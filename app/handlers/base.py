@@ -21,7 +21,7 @@ _pending_clear: dict[int, str] = {}
 async def start(message: Message):
     from app.db import session_scope
     from app.services.memory import get_chat_flags
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     async with session_scope() as st:
         if message.from_user:
             chat_on, _, _, _ = await get_chat_flags(st, message.from_user.id)
@@ -43,7 +43,7 @@ async def start(message: Message):
 @router.message(Command("ctx"))
 async def ctx_filters(message: Message):
     from app.db import session_scope
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     async with session_scope() as st:
         args = ((message.text or "").split(maxsplit=1) + [""])[1]
@@ -68,7 +68,7 @@ async def ctx_filters(message: Message):
 @router.message(Command("model"), F.text)
 async def set_model(message: Message):
     from app.db import session_scope
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     async with session_scope() as st:
         parts = (message.text or "").split(maxsplit=1)
@@ -87,7 +87,7 @@ async def set_model(message: Message):
 @router.message(Command("project"))
 async def project_select(message: Message):
     from app.db import session_scope
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     from app.services.artifacts import get_or_create_project
     from app.services.memory import set_active_project
@@ -110,7 +110,7 @@ async def project_select(message: Message):
 @router.message(Command("memory"), F.text.regexp(r"^/memory\s+add\b"))
 async def memory_add(message: Message):
     from app.db import session_scope
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     from app.services.memory import get_active_project
     from app.services.artifacts import create_note
@@ -180,7 +180,7 @@ async def memory_add(message: Message):
 @router.message(Command("memory"), F.text.regexp(r"^/memory\s+list($|\s)"))
 async def memory_list(message: Message):
     from app.db import session_scope
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     from app.services.memory import get_active_project
     from app.services.memory import list_artifacts
@@ -261,7 +261,7 @@ async def memory_list(message: Message):
 @router.message(Command("memory"), F.text.regexp(r"^/memory\s+show$"))
 async def memory_show(message: Message):
     from app.db import session_scope
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     from app.services.memory import get_active_project
     from app.services.memory import list_artifacts
@@ -288,7 +288,7 @@ async def memory_show(message: Message):
 @router.message(Command("memory"), F.text.regexp(r"^/memory\s+clear$"))
 async def memory_clear_ask(message: Message):
     from app.db import session_scope
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     from app.services.memory import get_active_project
     async with session_scope() as st:
@@ -306,7 +306,7 @@ async def memory_clear_ask(message: Message):
 @router.message(Command("memory"), F.text.regexp(r"^/memory\s+clear\s+.+$"))
 async def memory_clear_confirm(message: Message):
     from app.db import session_scope
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     from app.services.memory import get_active_project
     from app.services.memory import clear_project

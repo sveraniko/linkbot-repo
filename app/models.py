@@ -86,6 +86,15 @@ class UserState(Base):
     last_doc_name: Mapped[str | None] = mapped_column(String(256))
     last_doc_mime: Mapped[str | None] = mapped_column(String(64))
     last_doc_uploaded_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))
+    # Batch operations fields
+    last_batch_ids: Mapped[str | None] = mapped_column(String(1024))
+    last_batch_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))
+    # Selection basket fields
+    selected_artifact_ids: Mapped[str | None] = mapped_column(Text)
+    auto_clear_selection: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    last_batch_tag: Mapped[str | None] = mapped_column(String(16))
+    ask_armed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    awaiting_ask_search: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 class Repo(Base):
     __tablename__ = "repos"

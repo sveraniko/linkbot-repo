@@ -4,11 +4,14 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func
+from sqlalchemy import func, select
 from pathlib import Path
 import re
 import datetime as dt
+import uuid
+import hashlib
 from html import escape
+from zoneinfo import ZoneInfo
 
 from app.config import settings
 from app.services.memory import get_active_project, _ensure_user_state
@@ -16,6 +19,10 @@ from app.services.artifacts import create_import
 from app.storage import save_file
 from app.db import session_scope
 from app.ignore import load_pmignore, iter_text_files
+from app.models import Tag, artifact_tags
+
+# Add Berlin timezone
+BERLIN = ZoneInfo("Europe/Berlin")
 
 router = Router()
 
@@ -25,10 +32,46 @@ _LAST_DOC: dict[tuple[int, int], tuple[str, str]] = {}
 
 ALLOWED_EXTS = {".txt", ".md", ".json", ".zip"}
 
+# Date extraction patterns for auto-tags
+DATE_PATTERNS = [
+    re.compile(r"[_-](\d{4})(\d{2})(\d{2})[_-]"),         # _YYYYMMDD_ or -YYYYMMDD-
+    re.compile(r"[-](\d{4})[-](\d{2})[-](\d{2})"),        # -YYYY-MM-DD
+]
+
+def extract_doc_date(filename: str) -> str | None:
+    """Extract document date from filename if possible."""
+    for pat in DATE_PATTERNS:
+        m = pat.search(filename or "")
+        if m:
+            year, month, day = m.group(1), m.group(2), m.group(3)
+            # Validate date
+            try:
+                dt.date(int(year), int(month), int(day))
+                return f"{year}-{month}-{day}"
+            except ValueError:
+                continue
+    return None
+
+def auto_tags_for_single_file(filename: str) -> list[str]:
+    """Generate auto-tags for single file import."""
+    tags = [f"rel-{dt.date.today():%Y-%m-%d}"]
+    d = extract_doc_date(filename)
+    if d:
+        tags.append(f"doc-{d}")
+    tags.append(f"batch-{str(uuid.uuid4())[:6]}")
+    return tags
+
 def _extract_doc_tag(name: str) -> str | None:
     m = re.search(r'(\d{4})(\d{2})(\d{2})', (name or "").lower())
-    return f"doc-{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else None
-
+    if m:
+        year, month, day = m.group(1), m.group(2), m.group(3)
+        # Validate date
+        try:
+            dt.date(int(year), int(month), int(day))
+            return f"doc-{year}-{month}-{day}"
+        except ValueError:
+            return None
+    return None
 
 def _parse_tags(cmd_text: str | None) -> list[str] | None:
     if not cmd_text:
@@ -45,7 +88,7 @@ def _parse_tags(cmd_text: str | None) -> list[str] | None:
 @router.message(F.document)
 async def on_document(message: Message):
     """Ловим любой документ и запоминаем его как 'последний' для юзера в этом чате."""
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     doc = message.document
     if not doc or not message.from_user:
@@ -72,7 +115,7 @@ async def on_document(message: Message):
 
 @router.message(Command("import"))
 async def import_document(message: Message):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     if not message.from_user:
         return
@@ -126,13 +169,17 @@ async def import_document(message: Message):
                 text = data.decode("utf-8", errors="ignore")
                 title = file_name or "import.txt"
                 tags = _parse_tags(message.text)
-                # Add auto-tag date
-                date_tag = f"rel-{dt.datetime.utcnow().date().isoformat()}"
+                
+                # Add auto-tags using the new function
+                auto_tags = auto_tags_for_single_file(title)
+                
+                # Combine user tags with auto tags
                 if tags:
-                    tags.append(date_tag)
+                    tags.extend(auto_tags)
                 else:
-                    tags = [date_tag]
-                await create_import(
+                    tags = auto_tags
+                    
+                art = await create_import(
                     st, proj,
                     title=title,
                     text=text,
@@ -142,11 +189,26 @@ async def import_document(message: Message):
                     uri=uri,
                 )
                 await st.commit()
+                
+                # Create service card without MinIO key
+                lines = [
+                    f"Импортировано в проект: <b>{escape(proj.name)}</b>",
+                    f"Файл: {escape(title)}"
+                ]
+                
+                # Build inline keyboard with action buttons
+                from aiogram.utils.keyboard import InlineKeyboardBuilder
+                builder = InlineKeyboardBuilder()
+                builder.button(text="🏷 Теги", callback_data=f"imp:tag:{art.id}")
+                builder.button(text="🗑 Удалить", callback_data=f"imp:del:{art.id}")
+                builder.button(text="🔎 Ask this", callback_data=f"imp:ask:{art.id}")
+                builder.adjust(2)
+                
                 # Get chat_on flag to rebuild keyboard with correct state
                 chat_on, *_ = await get_chat_flags(st, message.from_user.id if message.from_user else 0)
                 await message.answer(
-                    f"Импортировано в <b>{escape(proj.name)}</b>: {escape(title)}\nURI: {uri or '—'}\nТеги: {', '.join(tags) if tags else '—'}",
-                    reply_markup=build_reply_kb(chat_on)
+                    "\n".join(lines),
+                    reply_markup=builder.as_markup()
                 )
                 return
 
@@ -180,7 +242,7 @@ async def import_document(message: Message):
             
         file_bytes_io = await message.bot.download_file(tg_file.file_path)
         if not file_bytes_io:
-            # Get chat_on flag to rebuild keyboard with correct state
+            # Get chat_on flag с correct state
             chat_on, *_ = await get_chat_flags(st, message.from_user.id if message.from_user else 0)
             await message.answer("Не удалось скачать файл", reply_markup=build_reply_kb(chat_on))
             return
@@ -189,19 +251,17 @@ async def import_document(message: Message):
         uri = await save_file(file_name, data)  # MinIO (публичный URL или None)
         text = data.decode("utf-8", errors="ignore")
         tags = _parse_tags(message.text)
-        # Add auto-tag date
-        date_tag = f"rel-{dt.datetime.utcnow().date().isoformat()}"
-        doc_tag = _extract_doc_tag(file_name)
+        
+        # Add auto-tags using the new function
+        auto_tags = auto_tags_for_single_file(file_name)
+        
+        # Combine user tags with auto tags
         if tags:
-            tags.append(date_tag)
-            if doc_tag:
-                tags.append(doc_tag)
+            tags.extend(auto_tags)
         else:
-            tags = [date_tag]
-            if doc_tag:
-                tags.append(doc_tag)
+            tags = auto_tags
 
-        await create_import(
+        art = await create_import(
             st, proj,
             title=file_name,
             text=text,
@@ -211,17 +271,32 @@ async def import_document(message: Message):
             uri=uri,
         )
         await st.commit()
+        
+        # Create service card without MinIO key
+        lines = [
+            f"Импортировано в проект: <b>{escape(proj.name)}</b>",
+            f"Файл: {escape(file_name)}"
+        ]
+        
+        # Build inline keyboard with action buttons
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🏷 Теги", callback_data=f"imp:tag:{art.id}")
+        builder.button(text="🗑 Удалить", callback_data=f"imp:del:{art.id}")
+        builder.button(text="🔎 Ask this", callback_data=f"imp:ask:{art.id}")
+        builder.adjust(2)
+        
         # Get chat_on flag to rebuild keyboard with correct state
         chat_on, *_ = await get_chat_flags(st, message.from_user.id if message.from_user else 0)
         await message.answer(
-            f"Импортировано в <b>{escape(proj.name)}</b>: {escape(file_name)}\nURI: {uri or '—'}\nТеги: {', '.join(tags) if tags else '—'}",
-            reply_markup=build_reply_kb(chat_on)
+            "\n".join(lines),
+            reply_markup=builder.as_markup()
         )
 
 # --- ZIP import ---
 @router.message(Command("importzip"))
 async def import_zip(message: Message):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     # Проверяем, что есть reply с документом
     if not message.reply_to_message or not message.reply_to_message.document:
@@ -239,17 +314,25 @@ async def import_zip(message: Message):
     
     # Получаем теги из команды
     tags = _parse_tags(message.text)
-    # Add auto-tag date
-    date_tag = f"rel-{dt.datetime.utcnow().date().isoformat()}"
+    
+    # Generate batch tag for ZIP import
+    import hashlib
+    batch_hash = hashlib.md5(f"{doc.file_name}{dt.datetime.now(BERLIN).isoformat()}".encode()).hexdigest()[:8]
+    batch_tag = f"batch-{batch_hash}"
+    
+    # Add auto-tags
+    auto_tags = []
+    auto_tags.append(f"rel-{dt.datetime.now(BERLIN).date().isoformat()}")
     doc_tag = _extract_doc_tag(doc.file_name or "")
+    if doc_tag:
+        auto_tags.append(doc_tag)
+    auto_tags.append(batch_tag)
+    
+    # Combine user tags with auto tags
     if tags:
-        tags.append(date_tag)
-        if doc_tag:
-            tags.append(doc_tag)
+        tags.extend(auto_tags)
     else:
-        tags = [date_tag]
-        if doc_tag:
-            tags.append(doc_tag)
+        tags = auto_tags
     
     # Скачиваем ZIP
     if not message.bot:
@@ -315,7 +398,7 @@ async def import_zip(message: Message):
             imported += 1
         await st.commit()
     
-    await message.answer(f"Импорт ZIP завершён: {imported} файлов.\nТег: <code>{escape(date_tag)}</code>")
+    await message.answer(f"Импорт ZIP завершён: {imported} файлов.\nТег: <code>{escape(batch_tag)}</code>")
 
 # --- экспортируем для меню ---
 async def import_last_for_user(message: Message, st: AsyncSession, tags: list[str] | None) -> bool:
@@ -348,23 +431,25 @@ async def import_last_for_user(message: Message, st: AsyncSession, tags: list[st
         await message.answer("Сначала выберите проект: <code>/project &lt;name&gt;</code>")
         return True
         
-    # Add auto-tag date
-    date_tag = f"rel-{dt.datetime.utcnow().date().isoformat()}"
-    doc_tag = _extract_doc_tag(file_name)
+    # Generate batch tag for single file import
+    batch_hash = hashlib.md5(f"{file_name}{dt.datetime.now(BERLIN).isoformat()}".encode()).hexdigest()[:8]
+    batch_tag = f"batch-{batch_hash}"
+    
+    # Add auto-tags using the new function
+    auto_tags = auto_tags_for_single_file(file_name)
+    
+    # Combine user tags with auto tags
     if tags:
-        tags.append(date_tag)
-        if doc_tag:
-            tags.append(doc_tag)
+        tags.extend(auto_tags)
     else:
-        tags = [date_tag]
-        if doc_tag:
-            tags.append(doc_tag)
+        tags = auto_tags
         
     if ext == ".zip":
         # Handle ZIP file import
         import zipfile
         import tempfile
         from app.ignore import load_pmignore, iter_text_files
+        from app.utils.zipfix import fix_zip_name, decode_text_bytes
         
         try:
             # Create temporary directory and file
@@ -383,19 +468,46 @@ async def import_last_for_user(message: Message, st: AsyncSession, tags: list[st
                 # Load .pmignore spec
                 spec = load_pmignore(tmp_path)
                 
-                # Import text files
+                # Import text files with encoding fixes
                 imported_count = 0
-                for rel_path, content in iter_text_files(tmp_path, spec):
-                    title = f"{escape(file_name)}:{escape(rel_path)}"
-                    await create_import(
-                        st, proj,
-                        title=title,
-                        text=content,
-                        chunk_size=settings.chunk_size,
-                        overlap=settings.chunk_overlap,
-                        tags=tags + ['zip']
-                    )
-                    imported_count += 1
+                for p in tmp_path.rglob("*"):
+                    if p.is_file():
+                        rel_path = p.relative_to(tmp_path).as_posix()
+                        if spec.match_file(rel_path):
+                            continue
+                        
+                        # Try to fix ZIP filename encoding
+                        # Since we don't have flag_bits here, we'll try our best to detect encoding issues
+                        fixed_rel_path = rel_path
+                        # Simple heuristic: if filename contains non-ASCII characters that look like encoding issues
+                        try:
+                            rel_path.encode("ascii")
+                        except UnicodeEncodeError:
+                            # Likely encoding issue, try to fix it
+                            fixed_rel_path = fix_zip_name(rel_path, 0)  # 0 flag bits as we don't have them
+                        
+                        # Check if it's a text file
+                        if not fixed_rel_path.lower().endswith((".md", ".txt", ".json")):
+                            continue
+                            
+                        # Read and decode content with proper encoding detection
+                        try:
+                            raw_data = p.read_bytes()
+                            content = decode_text_bytes(raw_data)
+                            
+                            title = f"{escape(file_name)}:{escape(fixed_rel_path)}"
+                            await create_import(
+                                st, proj,
+                                title=title,
+                                text=content,
+                                chunk_size=settings.chunk_size,
+                                overlap=settings.chunk_overlap,
+                                tags=tags + ['zip']
+                            )
+                            imported_count += 1
+                        except Exception:
+                            # Skip files that can't be processed
+                            continue
                 
                 await st.commit()
                 await message.answer(f"Импортировано из ZIP в <b>{escape(proj.name)}</b>: {imported_count} файлов\nАрхив: {escape(file_name)}\nТеги: {', '.join(tags) if tags else '—'}")
@@ -408,12 +520,27 @@ async def import_last_for_user(message: Message, st: AsyncSession, tags: list[st
         # Handle regular text files
         uri = await save_file(file_name, data)
         text = data.decode("utf-8", errors="ignore")
-        await create_import(
+        art = await create_import(
             st, proj,
             title=file_name, text=text,
             chunk_size=settings.chunk_size, overlap=settings.chunk_overlap,
             tags=tags, uri=uri,
         )
         await st.commit()
-        await message.answer(f"Импортировано в <b>{escape(proj.name)}</b>: {escape(file_name)}\nURI: {uri or '—'}\nТеги: {', '.join(tags) if tags else '—'}")
+        
+        # Create service card without MinIO key
+        lines = [
+            f"Импортировано в проект: <b>{escape(proj.name)}</b>",
+            f"Файл: {escape(file_name)}"
+        ]
+        
+        # Build inline keyboard with action buttons
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🏷 Теги", callback_data=f"imp:tag:{art.id}")
+        builder.button(text="🗑 Удалить", callback_data=f"imp:del:{art.id}")
+        builder.button(text="🔎 Ask this", callback_data=f"imp:ask:{art.id}")
+        builder.adjust(2)
+        
+        await message.answer("\n".join(lines), reply_markup=builder.as_markup())
         return True

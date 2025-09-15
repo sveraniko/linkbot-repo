@@ -16,7 +16,7 @@ def build_export_kb(project_name: str) -> InlineKeyboardMarkup:
 
 @router.callback_query(F.data == "export:open")
 async def export_open(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     async with session_scope() as st:
         proj = await get_active_project(st, cb.from_user.id if cb.from_user else 0)
@@ -35,7 +35,7 @@ async def export_open(cb: CallbackQuery):
 
 @router.callback_query(F.data == "export:project")
 async def export_project(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     async with session_scope() as st:
         proj = await get_active_project(st, cb.from_user.id if cb.from_user else 0)
@@ -56,7 +56,7 @@ async def export_project(cb: CallbackQuery):
 
 @router.callback_query(F.data == "export:context")
 async def export_context(cb: CallbackQuery):
-    from app.handlers.keyboard import build_reply_kb
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags
     async with session_scope() as st:
         proj = await get_active_project(st, cb.from_user.id if cb.from_user else 0)

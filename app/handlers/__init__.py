@@ -12,6 +12,8 @@ from .zip_handlers import router as zip_router
 from .export import router as export_router
 from .repo import router as repo_router
 from .cleanup import router as cleanup_router
+from .batch_ops import router as batch_ops_router
+from .memory_panel import router as memory_router
 
 router = Router()
 router.include_router(base_router)
@@ -20,10 +22,12 @@ router.include_router(status_router)
 router.include_router(ask_router)
 router.include_router(import_router)
 router.include_router(kb_router)
+router.include_router(memory_router)  # Add memory panel router
 # до chat_router!
 router.include_router(ans_router)
 router.include_router(zip_router)
 router.include_router(export_router)
 router.include_router(repo_router)
 router.include_router(cleanup_router)
+router.include_router(batch_ops_router)
 router.include_router(chat_router)

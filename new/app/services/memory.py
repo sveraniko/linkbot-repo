@@ -31,7 +31,7 @@ async def list_artifacts(session: AsyncSession, project: Project, kinds: set[str
     if tags:
         q = q.join(artifact_tags, artifact_tags.c.artifact_id == Artifact.id)\
              .join(Tag, Tag.name == artifact_tags.c.tag_name)\
-             .where(Tag.name.in_(list(tags))).distinct(Artifact.id)
+             .where(Tag.name.in_(list(tags)).distinct(Artifact.id))
     
     q = q.order_by(Artifact.created_at.desc())
     res = await session.execute(q)

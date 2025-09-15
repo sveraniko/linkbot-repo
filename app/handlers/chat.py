@@ -1,94 +1,55 @@
 from __future__ import annotations
 from aiogram import Router, F
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import get_session
-from app.config import settings
-from app.services.memory import (
-    get_active_project, get_chat_flags, get_context_filters_state, get_linked_project_ids,
-    gather_context_sources, get_preferred_model,
-)
-from app.models import BotMessage
-from app.llm import ask_llm
-from html import escape
+from aiogram.types import Message
 
-router = Router()
+from app.db import session_scope
+from app.services.memory import _ensure_user_state, get_chat_flags
+from app.handlers.keyboard import SERVICE_TEXTS, main_reply_kb
+from app.handlers.ask import run_question_with_selection
 
-# Префикс для запроса тегов
-TAG_PROMPT_PREFIX = "Свои теги (через запятую)"
-
-def answer_kb(msg_id: int, saved: bool):
-    # обязательные кнопки: Save / Summary / Tag / Delete / Refine
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=("✅ Saved" if saved else "💾 Save"), callback_data=f"ans:save:{msg_id}"),
-        InlineKeyboardButton(text="📌 Summary", callback_data=f"ans:sum:{msg_id}"),
-        InlineKeyboardButton(text="🏷 Tag", callback_data=f"ans:tag:{msg_id}"),
-    ],[
-        InlineKeyboardButton(text="🗑 Delete", callback_data=f"ans:del:{msg_id}"),
-        InlineKeyboardButton(text="↩ Refine", callback_data=f"ans:ref:{msg_id}"),
-    ]])
+router = Router(name="chat")
 
 @router.message(F.text & ~F.text.startswith("/"))
 async def on_free_text(message: Message):
-    from app.db import session_scope
+    if not message.from_user or (message.text is None):
+        return
+    text = message.text.strip()
+    if text in SERVICE_TEXTS:
+        return
+
     async with session_scope() as st:
-        if not message.from_user:
-            return
+        stt = await _ensure_user_state(st, message.from_user.id)
         
-        # Если это ответ на наш форс-промпт тегов — пропускаем,
-        # пусть обработает tags_free_reply
-        if message.reply_to_message and (
-            (message.reply_to_message.text or "").startswith(TAG_PROMPT_PREFIX) or
-            (message.reply_to_message.text or "").startswith("Свои теги для импорта")
-        ):
-            return
-
-        chat_on, quiet_on, sources_mode, scope_mode = await get_chat_flags(st, message.from_user.id)
-        if quiet_on:
-            return
-        if not chat_on:
-            # один мягкий хинт можно запоминать в памяти, но для MVP просто ответим
-            return await message.answer("💡 Включи чат: нажми «💬 Chat» на синей клавиатуре или команду /actions → Quiet OFF.")
-        proj = await get_active_project(st, message.from_user.id)
-        kinds, tags = await get_context_filters_state(st, message.from_user.id)
-        linked_ids = await get_linked_project_ids(st, message.from_user.id)
-
-        # Сбор контекста по источникам (упрощённая версия)
-        ctx_texts, used_pids = await gather_context_sources(
-            st, proj, message.from_user.id,
-            max_chunks=settings.project_max_chunks,
-            kinds=kinds, tags=tags,
-            sources_mode=sources_mode, linked_ids=linked_ids,
-        )
-
-        model = await get_preferred_model(st, message.from_user.id)
-
-        # Решаем по scope:
-        prompt = message.text or ""
-        final_ctx = ctx_texts if scope_mode in ("auto", "project") else []
+        # Early exit if awaiting ASK search response
+        if bool(stt.awaiting_ask_search):
+            # This message is a response to ASK search ForceReply
+            # Reset the flag and let the ASK handler process it
+            stt.awaiting_ask_search = False
+            await st.commit()
+            # Import and call the ASK search reply handler
+            from app.handlers.ask import ask_search_reply
+            return await ask_search_reply(message)
         
-        # Проверяем, нужен ли проект
-        if not proj and sources_mode in ("active", "linked") and scope_mode != "global":
-            await message.answer("Сначала выбери проект: открой Actions → Projects (или /project <name>). "
-                                 "Либо поставь Sources=Global в Actions.")
+        chat_on, *_ = await get_chat_flags(st, message.from_user.id)
+
+        # ASK path first
+        if bool(stt.ask_armed):
+            if not chat_on:
+                await message.answer(
+                    "Чат выключен. Нажми ‘💬 Chat: ON’ и отправь вопрос — ASK уже готов.",
+                    reply_markup=main_reply_kb(False)
+                )
+                return
+            # IMPORTANT: no LLM call in test mode
+            return await run_question_with_selection(message, text)
+
+        # Global chat path — TEMPORARILY DISABLED to avoid token usage
+        if chat_on:
+            await message.answer("Глобальный чат временно отключён (тест-режим, без LLM).")
             return
-        
-        answer = await ask_llm(prompt, final_ctx, model=model)  # внутри ask_llm ты уже умеешь сшивать ctx в system
-
-        # штамп
-        from app.services.memory import list_projects
-        names = {p.id: p.name for p in await list_projects(st)}
-        stamp = f"\n\n<i>Project: {escape(proj.name) if proj else '—'} • Scope: {scope_mode} • Sources: {sources_mode} • Model: {model}</i>"
-
-        sent = await message.answer(answer + stamp)
-        bm = BotMessage(
-            chat_id=message.chat.id,
-            user_id=message.from_user.id,
-            tg_message_id=sent.message_id,
-            reply_to_user_msg_id=message.message_id,
-            artifact_id=None, saved=False,
-            project_id=(proj.id if proj else None),
-            used_projects={"ids": used_pids},
-        )
-        st.add(bm); await st.commit()
-        await sent.edit_reply_markup(reply_markup=answer_kb(sent.message_id, saved=False))
+        else:
+            await message.answer(
+                "Чат выключен. Нажми ‘💬 Chat: ON’ чтобы задать вопрос (LLM сейчас отключён).",
+                reply_markup=main_reply_kb(False)
+            )
+            return

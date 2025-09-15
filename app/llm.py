@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+LLM_DISABLED = os.getenv("LLM_DISABLED", "1") == "1"  # 1 = OFF by default
+
 import asyncio
 import logging
 import json
@@ -42,6 +45,10 @@ async def ask_llm(prompt: str, ctx_chunks: Sequence[str], model: str = "gpt-4o",
     """
     Основной ответ. model: 'gpt-4o' | 'gpt-4o-mini'
     """
+    if LLM_DISABLED:
+        ctx_n = len(ctx_chunks or [])
+        return f"🧪 TEST: LLM отключён.\nВопрос: {prompt[:400]}\nКонтекст: {ctx_n} фрагм."
+    
     if not OPENAI_AVAILABLE or _client is None:
         return "⚠️ OpenAI SDK не установлен. Установите openai>=1.40.0"
     
@@ -65,6 +72,9 @@ async def summarize_text(text: str, model: str | None = None, max_tokens: int = 
     """
     Краткое резюме ответа (используется кнопкой 📌 Summary).
     """
+    if LLM_DISABLED:
+        return "🧪 TEST: LLM отключён. Резюме не создано."
+        
     if not OPENAI_AVAILABLE or _client is None:
         return "⚠️ OpenAI SDK не установлен. Установите openai>=1.40.0"
         
@@ -101,6 +111,9 @@ async def generate_zip_files(task_description: str, context_chunks: Sequence[str
     Returns:
         Dictionary mapping file paths to their content
     """
+    if LLM_DISABLED:
+        return {"test.txt": "🧪 TEST: LLM отключён. Файлы не созданы."}
+        
     if not OPENAI_AVAILABLE or _client is None:
         return {"error.txt": "OpenAI SDK не установлен. Установите openai>=1.40.0"}
     
@@ -168,6 +181,9 @@ async def generate_single_file(file_path: str, task_description: str, context_ch
     Returns:
         File content as string
     """
+    if LLM_DISABLED:
+        return "# 🧪 TEST: LLM отключён. Файл не создан."
+        
     if not OPENAI_AVAILABLE or _client is None:
         return "# OpenAI SDK не установлен. Установите openai>=1.40.0"
         
@@ -182,7 +198,7 @@ async def generate_single_file(file_path: str, task_description: str, context_ch
 ФАЙЛ: {file_path}
 ЗАДАЧА: {task_description}
 
-ИНСТРУКЦИИ:
+ИНСТРУКЦИЕ:
 1. Проанализируйте контекст проекта
 2. Создайте содержимое файла по указанному пути
 3. Учтите расширение файла для выбора языка/формата
@@ -222,6 +238,9 @@ async def analyze_diff_context(summary: str, context_chunks: Sequence[str]) -> s
     Returns:
         Analysis and recommendations
     """
+    if LLM_DISABLED:
+        return "🧪 TEST: LLM отключён. Анализ не выполнен."
+        
     if not OPENAI_AVAILABLE or _client is None:
         return "⚠️ OpenAI SDK не установлен. Установите openai>=1.40.0"
         
@@ -236,7 +255,7 @@ async def analyze_diff_context(summary: str, context_chunks: Sequence[str]) -> s
 ИЗМЕНЕНИЯ:
 {summary}
 
-ИНСТРУКЦИИ:
+ИНСТРУКЦИЕ:
 1. Проанализируйте характер изменений
 2. Оцените потенциальное влияние на проект
 3. Предложите рекомендации
