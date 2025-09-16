@@ -95,6 +95,12 @@ class UserState(Base):
     last_batch_tag: Mapped[str | None] = mapped_column(String(16))
     ask_armed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     awaiting_ask_search: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Memory panel pagination fields
+    memory_page_msg_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
+    memory_footer_msg_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ASK panel pagination fields
+    ask_page_msg_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ask_footer_msg_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 class Repo(Base):
     __tablename__ = "repos"

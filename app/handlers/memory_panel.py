@@ -93,7 +93,7 @@ async def memory_list(cb: CallbackQuery):
                 await cb.message.answer("Нет активного проекта", reply_markup=main_reply_kb(chat_on))
             return await cb.answer("Нет активного проекта")
             
-        page_size = 10
+        page_size = 5  # Changed to 5 items per page as per SPEC v2
         offset = (page - 1) * page_size
         
         # Get artifacts with their tags using selectinload to avoid duplicates
@@ -108,46 +108,99 @@ async def memory_list(cb: CallbackQuery):
         result = await st.execute(stmt)
         artifacts = result.scalars().all()
         
-        if not artifacts:
-            lines = ["<b>Memory — список</b>", "Нет записей."]
-        else:
-            lines = [f"<b>Memory — список (стр. {page})</b>"]
-            for i, art in enumerate(artifacts, start=1 + offset):
-                # Get tags for this artifact
-                tag_names = [t.name for t in art.tags] if art.tags else []
-                tags_str = f" [{', '.join(escape(tag) for tag in tag_names[:3])}]" if tag_names else ""
-                title = escape((art.title or str(art.id))[:50])
-                lines.append(f"{i}. 📄 {title}{tags_str}")
-        
-        # Build keyboard with pagination and item actions
-        builder = InlineKeyboardBuilder()
-        
-        # Add item action buttons with correct callback data format
+        # Anti-duplication: remove duplicates by ID
+        seen = set()
+        unique_artifacts = []
         for art in artifacts:
-            art_id = art.id
-            title = (art.title or str(art.id))[:20]
-            builder.button(text=f"🗑 {title}", callback_data=f"mem:delete:{art_id}")
-            builder.button(text=f"🏷 {title}", callback_data=f"mem:tag:{art_id}")
-            builder.button(text=f"🧷 {title}", callback_data=f"mem:pin:{art_id}")
-            builder.button(text=f"🔎 {title}", callback_data=f"mem:ask:{art_id}")
-        builder.adjust(2)
+            if art.id not in seen:
+                seen.add(art.id)
+                unique_artifacts.append(art)
+        artifacts = unique_artifacts
         
-        # Pagination
-        if page > 1:
-            builder.button(text="⬅️ Назад", callback_data=f"mem:list:{page-1}")
-        builder.button(text="📋 Обновить", callback_data=f"mem:list:{page}")
-        # Check if there are more items
-        if len(artifacts) == page_size:
-            builder.button(text="Вперёд ➡️", callback_data=f"mem:list:{page+1}")
-        builder.adjust(2)
+        # Get user state to check selected artifacts
+        stt = await _ensure_user_state(st, cb.from_user.id)
+        selected_ids = set()
+        if stt.selected_artifact_ids:
+            try:
+                selected_ids = {int(id_str.strip()) for id_str in stt.selected_artifact_ids.split(',') if id_str.strip()}
+            except ValueError:
+                pass
         
-        # Bottom menu
-        builder.button(text="🏠 Назад", callback_data="mem:main")
-        builder.adjust(1)
-        
+        # Send each artifact as a separate message with its own inline keyboard
         if cb.message and isinstance(cb.message, Message) and cb.message.bot:
-            await show_panel(st, cb.message.bot, cb.message.chat.id, cb.from_user.id,
-                           "\n".join(lines), builder.as_markup())
+            # Delete previous messages if this is a pagination action
+            if stt.memory_page_msg_ids:
+                try:
+                    msg_ids = [int(id_str) for id_str in stt.memory_page_msg_ids.split(',') if id_str.strip()]
+                    for msg_id in msg_ids:
+                        await cb.message.bot.delete_message(chat_id=cb.message.chat.id, message_id=msg_id)
+                except Exception:
+                    pass  # Ignore errors when deleting messages
+            
+            # Delete previous footer message if it exists
+            if stt.memory_footer_msg_id:
+                try:
+                    await cb.message.bot.delete_message(chat_id=cb.message.chat.id, message_id=stt.memory_footer_msg_id)
+                except Exception:
+                    pass  # Ignore errors when deleting messages
+            
+            # Send new messages
+            sent_msg_ids = []
+            for art in artifacts:
+                # Create artifact text line
+                tag_names = [t.name for t in art.tags] if art.tags else []
+                tags_str = ""
+                if tag_names:
+                    tags_str = " [" + " ".join(escape(tag) for tag in tag_names[:3]) + "]"
+                title = escape((art.title or str(art.id))[:80])
+                created_at = art.created_at.strftime("%Y-%m-%d") if art.created_at else ""
+                text_line = f"{title}{tags_str} (id {art.id}{', ' + created_at if created_at else ''})"
+                
+                # Create inline keyboard for this artifact
+                builder = InlineKeyboardBuilder()
+                toggle_icon = "🧺" if art.id in selected_ids else "➕"
+                builder.button(text=toggle_icon, callback_data=f"mem:toggle:{art.id}")
+                builder.button(text="🗑", callback_data=f"mem:delete:{art.id}")
+                builder.adjust(2)
+                
+                # Send message for this artifact
+                sent_msg = await cb.message.bot.send_message(
+                    chat_id=cb.message.chat.id,
+                    text=text_line,
+                    reply_markup=builder.as_markup()
+                )
+                sent_msg_ids.append(str(sent_msg.message_id))
+            
+            # Store message IDs for future pagination
+            stt.memory_page_msg_ids = ",".join(sent_msg_ids) if sent_msg_ids else None
+            
+            # Send pagination footer
+            # Get total count for pagination
+            count_stmt = select(func.count(Artifact.id)).where(Artifact.project_id == proj.id)
+            count_result = await st.execute(count_stmt)
+            total_count = count_result.scalar_one_or_none() or 0
+            total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 1
+            
+            if total_pages > 1:
+                footer_builder = InlineKeyboardBuilder()
+                if page > 1:
+                    footer_builder.button(text="⬅️ Назад", callback_data=f"mem:list:{page-1}")
+                footer_builder.button(text=f"Стр. {page}/{total_pages}", callback_data="mem:noop")
+                if page < total_pages:
+                    footer_builder.button(text="Далее ➡️", callback_data=f"mem:list:{page+1}")
+                footer_builder.adjust(3)
+                
+                footer_msg = await cb.message.bot.send_message(
+                    chat_id=cb.message.chat.id,
+                    text="Пагинация:",
+                    reply_markup=footer_builder.as_markup()
+                )
+                # Store footer message ID
+                stt.memory_footer_msg_id = footer_msg.message_id
+            else:
+                stt.memory_footer_msg_id = None
+            
+            await st.commit()
             
         # Always include reply keyboard
         chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
@@ -791,3 +844,72 @@ async def memory_ask(cb: CallbackQuery):
         if cb.message and isinstance(cb.message, Message):
             await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
     await cb.answer("Выбрано для ASK")
+
+# Add toggle handler for artifact selection
+@router.callback_query(F.data.startswith("mem:toggle:"))
+async def memory_toggle(cb: CallbackQuery):
+    if not cb.from_user or not cb.data:
+        return await cb.answer("Invalid user")
+    
+    try:
+        art_id = int(cb.data.split(":")[2])
+    except (IndexError, ValueError):
+        # Always include reply keyboard
+        async with session_scope() as st:
+            chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+            if cb.message and isinstance(cb.message, Message):
+                await cb.message.answer("Некорректный ID записи", reply_markup=main_reply_kb(chat_on))
+        return await cb.answer("Некорректный ID записи")
+    
+    async with session_scope() as st:
+        # Get user state
+        stt = await _ensure_user_state(st, cb.from_user.id)
+        
+        # Parse current selected IDs
+        selected_ids = set()
+        if stt.selected_artifact_ids:
+            try:
+                selected_ids = {int(id_str.strip()) for id_str in stt.selected_artifact_ids.split(',') if id_str.strip()}
+            except ValueError:
+                pass
+        
+        # Toggle the artifact ID
+        if art_id in selected_ids:
+            selected_ids.remove(art_id)
+            action_text = "Убран из выбора"
+            new_icon = "➕"
+        else:
+            selected_ids.add(art_id)
+            action_text = "Добавлен в выбор"
+            new_icon = "🧺"
+        
+        # Save updated selection
+        if selected_ids:
+            stt.selected_artifact_ids = ",".join(str(id) for id in sorted(selected_ids))
+        else:
+            stt.selected_artifact_ids = None
+            
+        await st.commit()
+        
+        # Update the inline keyboard of the current message to show the new icon
+        if cb.message and isinstance(cb.message, Message) and cb.message.bot:
+            # Create updated inline keyboard with new icon
+            builder = InlineKeyboardBuilder()
+            builder.button(text=new_icon, callback_data=f"mem:toggle:{art_id}")
+            builder.button(text="🗑", callback_data=f"mem:delete:{art_id}")
+            builder.adjust(2)
+            
+            try:
+                await cb.message.bot.edit_message_reply_markup(
+                    chat_id=cb.message.chat.id,
+                    message_id=cb.message.message_id,
+                    reply_markup=builder.as_markup()
+                )
+            except Exception:
+                pass  # Ignore errors when editing message
+        
+        # Always include reply keyboard
+        chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+        if cb.message and isinstance(cb.message, Message):
+            await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+    await cb.answer(action_text)

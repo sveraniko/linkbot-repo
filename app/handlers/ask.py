@@ -15,7 +15,7 @@ from pathlib import Path
 
 from app.db import session_scope
 from app.models import Artifact, Chunk, UserState, Tag, artifact_tags
-from app.services.memory import _ensure_user_state, get_active_project, get_chat_flags
+from app.services.memory import _ensure_user_state, get_active_project, get_chat_flags, get_linked_project_ids
 from app.handlers.keyboard import main_reply_kb
 from app.handlers.import_file import _LAST_DOC
 from app.services.artifacts import create_import
@@ -109,11 +109,14 @@ def _parse_search_query(q: str) -> tuple[list[str], list[str], str | None]:
     Parse search query to extract tag, id, and title filters.
     Returns (tag_filters, id_filters, title_filter)
     """
-    # Handle special case: if input is purely numeric, treat as ID search
-    if q.isdigit():
+    # Strip whitespace
+    q = q.strip()
+    
+    # Handle special case: if input is purely numeric, treat as ID search (Hotfix C)
+    if re.match(r'^\d+$', q):
         return [], [q], None
     
-    # Handle special case: if input starts with #, treat as tag search
+    # Handle special case: if input starts with #, treat as tag search (Hotfix C)
     if q.startswith('#'):
         tag_query = q[1:].strip()  # Remove the # prefix
         if tag_query:
@@ -135,172 +138,226 @@ async def _render_panel(m: Message, st, q: str | None = None, page: int = 1):
     stt = await _ensure_user_state(st, m.from_user.id)
     sel = set(_ids_get(stt))
     
+    # Get linked project IDs for proper search scope (Hotfix B)
+    linked_project_ids = await get_linked_project_ids(st, m.from_user.id)
+    # Combine active project ID with linked project IDs
+    project_ids = [proj.id] + linked_project_ids
+    
+    # Log parameters for debugging (Hotfix A)
+    print(f"DEBUG: _render_panel - project_ids={project_ids}, search_query='{q}', page={page}")
+    
     # Get selected artifacts for summary display
     selected_artifacts = []
     if sel:
         sel_query = sa.select(Artifact).where(Artifact.id.in_(list(sel)))
         selected_artifacts = (await st.execute(sel_query)).scalars().all()
 
-    # Build base query using subqueries to avoid DISTINCT ON issues
+    # Build base query using subqueries to avoid DISTINCT ON issues (Variant B approach) (Hotfix D)
     if q:
         # Parse search query for different filter types
         tag_filters, id_filters, title_filter = _parse_search_query(q)
         
         # Create subquery for artifact IDs based on search criteria
         if tag_filters:
-            # Subquery for tag-based search using join and distinct
+            # Subquery for tag-based search using join and distinct (Variant B) (Hotfix D)
             tag_subq = (
-                sa.select(distinct(artifact_tags.c.artifact_id))
+                sa.select(sa.distinct(artifact_tags.c.artifact_id))
                 .join(Tag, artifact_tags.c.tag_name == Tag.name)
-                .where(sa.func.lower(Tag.name).like(f"%{tag_filters[0].lower()}%"))
-            )
-            # Main query using the subquery
-            base = sa.select(Artifact).where(
-                and_(
-                    Artifact.project_id == proj.id,
-                    Artifact.id.in_(tag_subq)
+                .where(
+                    sa.and_(
+                        artifact_tags.c.artifact_id == Artifact.id,  # Join condition in subquery
+                        Artifact.project_id.in_(project_ids),
+                        sa.func.lower(Tag.name).like(f"%{tag_filters[0].lower()}%")
+                    )
                 )
+            )
+            # Main query using the subquery (Variant B) (Hotfix D)
+            base = sa.select(Artifact).where(
+                Artifact.id.in_(tag_subq)
             ).order_by(Artifact.created_at.desc())
         elif id_filters:
-            # Direct ID match
+            # Direct ID match (Variant B) (Hotfix D)
             try:
                 artifact_id = int(id_filters[0])
-                base = sa.select(Artifact).where(
-                    and_(
-                        Artifact.project_id == proj.id,
+                # Subquery for ID-based search (Variant B) (Hotfix D)
+                id_subq = sa.select(Artifact.id).where(
+                    sa.and_(
+                        Artifact.project_id.in_(project_ids),
                         Artifact.id == artifact_id
                     )
+                )
+                # Main query using the subquery (Variant B) (Hotfix D)
+                base = sa.select(Artifact).where(
+                    Artifact.id.in_(id_subq)
                 ).order_by(Artifact.created_at.desc())
             except ValueError:
                 # If ID is not valid, return empty result
                 base = sa.select(Artifact).where(
-                    and_(
-                        Artifact.project_id == proj.id,
-                        Artifact.id.is_(None)  # This will return empty result
-                    )
+                    Artifact.id.is_(None)  # This will return empty result
                 ).order_by(Artifact.created_at.desc())
         elif title_filter:
-            # Title-based search
-            base = sa.select(Artifact).where(
-                and_(
-                    Artifact.project_id == proj.id,
+            # Title-based search (Variant B) (Hotfix D)
+            # Subquery for title-based search (Variant B) (Hotfix D)
+            title_subq = sa.select(Artifact.id).where(
+                sa.and_(
+                    Artifact.project_id.in_(project_ids),
                     sa.func.lower(Artifact.title).like(f"%{title_filter.lower()}%")
                 )
+            )
+            # Main query using the subquery (Variant B) (Hotfix D)
+            base = sa.select(Artifact).where(
+                Artifact.id.in_(title_subq)
             ).order_by(Artifact.created_at.desc())
         else:
-            # No specific filter, show all artifacts
-            base = sa.select(Artifact).where(Artifact.project_id == proj.id).order_by(Artifact.created_at.desc())
+            # No specific filter, show all artifacts (Variant B) (Hotfix D)
+            # Subquery for all artifacts (Variant B) (Hotfix D)
+            all_subq = sa.select(Artifact.id).where(
+                Artifact.project_id.in_(project_ids)
+            )
+            # Main query using the subquery (Variant B) (Hotfix D)
+            base = sa.select(Artifact).where(
+                Artifact.id.in_(all_subq)
+            ).order_by(Artifact.created_at.desc())
     else:
-        # No search query, show all artifacts
-        base = sa.select(Artifact).where(Artifact.project_id == proj.id).order_by(Artifact.created_at.desc())
+        # No search query, show all artifacts (Variant B) (Hotfix D)
+        # Subquery for all artifacts (Variant B) (Hotfix D)
+        all_subq = sa.select(Artifact.id).where(
+            Artifact.project_id.in_(project_ids)
+        )
+        # Main query using the subquery (Variant B) (Hotfix D)
+        base = sa.select(Artifact).where(
+            Artifact.id.in_(all_subq)
+        ).order_by(Artifact.created_at.desc())
     
-    page_size = 10
+    page_size = 5  # Changed to 5 items per page as per SPEC v2
+    # Execute query with pagination
     res = (await st.execute(base.limit(page_size).offset((page-1)*page_size))).scalars().all()
-
-    lines = ["<b>ASK — выбор источников</b>"]
     
-    # Add search hint
-    lines.append("Введи название, #тег или id:...")
-    
-    if q:
-        lines.append(f"Поиск по: <i>{escape(q)}</i>")
-    if not res:
-        lines.append("Ничего не найдено.")
-    
-    # Add tags to each artifact line for better identification
-    for a in res:
-        mark = "🧺" if a.id in sel else "➕"
-        title = escape((a.title or str(a.id))[:80])
-        # Extract and show tags - now properly handling InstrumentedList
-        tags = ""
-        if a.tags:
-            tag_list = [t.name for t in a.tags]  # Fixed: use t.name instead of splitting string
-            if tag_list:
-                tags = " [" + ", ".join(escape(t) for t in tag_list[:3]) + "]"
-        lines.append(f"{mark} <code>{a.id}</code> — {title}{tags}")
+    # Additional uniqueness check in Python as a safety measure (Hotfix D)
+    unique_res = []
+    seen_ids = set()
+    for artifact in res:
+        if artifact.id not in seen_ids:
+            unique_res.append(artifact)
+            seen_ids.add(artifact.id)
+    res = unique_res
 
-    # Build per-item toggle buttons + pager (one row per artifact with toggle and delete buttons)
-    kb = InlineKeyboardBuilder()
-    for a in res:
-        mark = "🧺" if a.id in sel else "➕"
-        kb.button(text=f"{mark} {a.id}", callback_data=f"aw:toggle:{a.id}")
-        kb.button(text=f"🗑 {a.id}", callback_data=f"aw:delete:{a.id}")
-    kb.adjust(2)  # Two buttons per row
-
-    if page > 1:
-        kb.button(text="⬅️ Назад", callback_data=f"aw:page:{page-1}")
-    if len(res) == page_size:
-        kb.button(text="Вперёд ➡️", callback_data=f"aw:page:{page+1}")
-    kb.adjust(2)  # Adjust pager buttons
-
-    # Top row: Selected summary and clear buttons
-    top_kb = InlineKeyboardBuilder()
-    if selected_artifacts:
-        # Add selected summary as a label button
-        summary_text = _format_selected_summary(selected_artifacts)
-        if summary_text:
-            top_kb.button(text=summary_text, callback_data="aw:noop")
-            top_kb.adjust(1)
+    # Send each artifact as a separate message with its own inline keyboard
+    if m.bot:
+        # Delete previous messages if this is a pagination action
+        if stt.ask_page_msg_ids:
+            try:
+                msg_ids = [int(id_str) for id_str in stt.ask_page_msg_ids.split(',') if id_str.strip()]
+                for msg_id in msg_ids:
+                    await m.bot.delete_message(chat_id=m.chat.id, message_id=msg_id)
+            except Exception:
+                pass  # Ignore errors when deleting messages
         
-        # Add remove buttons for each selected item
-        for art in selected_artifacts[:5]:  # Limit to first 5 to avoid too many buttons
-            top_kb.button(text=f"🧺 Убрать {art.id}", callback_data=f"aw:toggle:{art.id}")
-        top_kb.button(text="❌ Сброс", callback_data="aw:clear")
-        top_kb.adjust(1)
-
-    budget_label = await _calc_budget_label(st, list(sel))
-    # Bottom control row (search/ask/clear)
-    controls = _panel_kb(len(sel), budget_label, stt.auto_clear_selection)
-    
-    # Always include reply keyboard to prevent it from disappearing
-    chat_on, *_ = await get_chat_flags(st, m.from_user.id)
-    
-    # Edit existing panel message if it exists, otherwise send new messages
-    if stt.last_panel_msg_id and m.chat and m.bot:
-        try:
-            # Try to edit the existing panel message
-            await m.bot.edit_message_text(
+        # Delete previous footer message if it exists
+        if stt.ask_footer_msg_id:
+            try:
+                await m.bot.delete_message(chat_id=m.chat.id, message_id=stt.ask_footer_msg_id)
+            except Exception:
+                pass  # Ignore errors when deleting messages
+        
+        # Send new messages
+        sent_msg_ids = []
+        for a in res:
+            # Create artifact text line
+            tags = ""
+            if a.tags:
+                tag_list = [t.name for t in a.tags]
+                if tag_list:
+                    tags = " [" + " ".join(escape(t) for t in tag_list[:3]) + "]"
+            title = escape((a.title or str(a.id))[:80])
+            created_at = a.created_at.strftime("%Y-%m-%d") if a.created_at else ""
+            text_line = f"{title}{tags} (id {a.id}{', ' + created_at if created_at else ''})"
+            
+            # Create inline keyboard for this artifact
+            kb = InlineKeyboardBuilder()
+            mark = "🧺" if a.id in sel else "➕"
+            kb.button(text=mark, callback_data=f"aw:toggle:{a.id}")
+            kb.button(text="🗑", callback_data=f"aw:delete:{a.id}")
+            kb.adjust(2)
+            
+            # Send message for this artifact
+            sent_msg = await m.bot.send_message(
                 chat_id=m.chat.id,
-                message_id=stt.last_panel_msg_id,
-                text="\n".join(lines),
-                parse_mode="HTML",
-                reply_markup=controls
+                text=text_line,
+                reply_markup=kb.as_markup()
             )
-        except Exception:
-            # If editing fails, send a new message and update the ID
-            sent_msg = await m.answer(
-                "\n".join(lines), 
-                parse_mode="HTML", 
-                reply_markup=controls
+            sent_msg_ids.append(str(sent_msg.message_id))
+        
+        # Store message IDs for future pagination
+        stt.ask_page_msg_ids = ",".join(sent_msg_ids) if sent_msg_ids else None
+        
+        # Send pagination footer
+        # Get total count for pagination using subquery approach (Variant B) (Hotfix D)
+        count_subq = sa.select(sa.func.count(Artifact.id)).where(Artifact.project_id.in_(project_ids))
+        # Apply filters if there's a search query
+        if q:
+            tag_filters, id_filters, title_filter = _parse_search_query(q)
+            if tag_filters:
+                tag_count_subq = (
+                    sa.select(sa.func.count(sa.distinct(artifact_tags.c.artifact_id)))
+                    .join(Tag, artifact_tags.c.tag_name == Tag.name)
+                    .where(
+                        sa.and_(
+                            artifact_tags.c.artifact_id == Artifact.id,
+                            Artifact.project_id.in_(project_ids),
+                            sa.func.lower(Tag.name).like(f"%{tag_filters[0].lower()}%")
+                        )
+                    )
+                )
+                count_subq = tag_count_subq
+            elif id_filters:
+                try:
+                    artifact_id = int(id_filters[0])
+                    id_count_subq = sa.select(sa.func.count(Artifact.id)).where(
+                        sa.and_(
+                            Artifact.project_id.in_(project_ids),
+                            Artifact.id == artifact_id
+                        )
+                    )
+                    count_subq = id_count_subq
+                except ValueError:
+                    count_subq = sa.select(sa.func.count(Artifact.id)).where(Artifact.id.is_(None))
+            elif title_filter:
+                title_count_subq = sa.select(sa.func.count(Artifact.id)).where(
+                    sa.and_(
+                        Artifact.project_id.in_(project_ids),
+                        sa.func.lower(Artifact.title).like(f"%{title_filter.lower()}%")
+                    )
+                )
+                count_subq = title_count_subq
+        
+        count_result = await st.execute(count_subq)
+        total_count = count_result.scalar_one_or_none() or 0
+        total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 1
+        
+        if total_pages > 1:
+            footer_builder = InlineKeyboardBuilder()
+            if page > 1:
+                footer_builder.button(text="⬅️ Назад", callback_data=f"aw:page:{page-1}")
+            footer_builder.button(text=f"Стр. {page}/{total_pages}", callback_data="aw:noop")
+            if page < total_pages:
+                footer_builder.button(text="Далее ➡️", callback_data=f"aw:page:{page+1}")
+            footer_builder.adjust(3)
+            
+            footer_msg = await m.bot.send_message(
+                chat_id=m.chat.id,
+                text="Пагинация:",
+                reply_markup=footer_builder.as_markup()
             )
-            stt.last_panel_msg_id = sent_msg.message_id
-            await st.commit()
-    else:
-        # Send messages: top summary, list with item toggles, controls panel
-        if selected_artifacts:
-            # Send top summary row
-            top_markup = top_kb.as_markup()
-            await m.answer("Выбранные источники:", reply_markup=top_markup)
+            # Store footer message ID
+            stt.ask_footer_msg_id = footer_msg.message_id
+        else:
+            stt.ask_footer_msg_id = None
         
-        # Send search results
-        list_markup = kb.as_markup()
-        search_msg = await m.answer(
-            "\n".join(lines), 
-            parse_mode="HTML", 
-            reply_markup=list_markup
-        )
-        
-        # Send controls panel
-        panel_msg = await m.answer(
-            "ASK панель:", 
-            reply_markup=controls
-        )
-        
-        # Store the panel message ID for future edits
-        stt.last_panel_msg_id = panel_msg.message_id
         await st.commit()
     
     # Always send reply keyboard to prevent it from disappearing
+    chat_on, *_ = await get_chat_flags(st, m.from_user.id)
     await m.answer("...", reply_markup=main_reply_kb(chat_on))
 
 @router.message(F.text == "ASK-WIZARD ❓")
@@ -356,6 +413,22 @@ async def ask_search_reply(message: Message):
         # Reset the awaiting_ask_search flag
         stt = await _ensure_user_state(st, message.from_user.id)
         stt.awaiting_ask_search = False
+        
+        # Log search parameters for debugging (Hotfix A)
+        active_project = await get_active_project(st, message.from_user.id)
+        active_project_id = active_project.id if active_project else None
+        linked_project_ids = await get_linked_project_ids(st, message.from_user.id)
+        
+        # Parse the search query to determine mode
+        if q.isdigit():
+            mode = "id"
+        elif q.startswith('#') and len(q) > 1:
+            mode = "tag"
+        else:
+            mode = "name"
+        
+        print(f"DEBUG: ask_search_reply - mode={mode}, term='{q}', active_project_id={active_project_id}, linked_project_ids={linked_project_ids}, user_id={message.from_user.id}")
+        
         await st.commit()
         
         await _render_panel(message, st, q=q, page=1)
@@ -407,20 +480,40 @@ async def ask_toggle(cb: CallbackQuery):
         if art_id in current:
             current.remove(art_id)
             action_text = "Убран из выбора"
+            new_icon = "➕"
         else:
             current.add(art_id)
             action_text = "Добавлен в выбор"
+            new_icon = "🧺"
         _ids_set(stt, current)
         await st.commit()
-        # Rerender current page (simple approach: page 1)
-        if cb.message and isinstance(cb.message, Message):
-            await _render_panel(cb.message, st, q=None, page=1)
+        
+        # Update the inline keyboard of the current message to show the new icon (instant toggle) (Hotfix E)
+        if cb.message and isinstance(cb.message, Message) and cb.message.bot:
+            # Create updated inline keyboard with new icon
+            builder = InlineKeyboardBuilder()
+            builder.button(text=new_icon, callback_data=f"aw:toggle:{art_id}")
+            builder.button(text="🗑", callback_data=f"aw:delete:{art_id}")
+            builder.adjust(2)
             
+            try:
+                await cb.message.bot.edit_message_reply_markup(
+                    chat_id=cb.message.chat.id,
+                    message_id=cb.message.message_id,
+                    reply_markup=builder.as_markup()
+                )
+                # Answer callback without showing alert for instant toggle (Hotfix E)
+                await cb.answer(action_text, show_alert=False)
+            except Exception as e:
+                # Log error but still answer the callback
+                print(f"DEBUG: Error updating inline keyboard: {e}")
+                await cb.answer(action_text, show_alert=True)
+        
         # Always include reply keyboard
         chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
         if cb.message and isinstance(cb.message, Message):
             await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
-    await cb.answer(action_text)
+    # Callback already answered above, no need to answer again
 
 @router.callback_query(F.data.startswith("aw:delete:"))
 async def ask_delete(cb: CallbackQuery):
@@ -456,7 +549,7 @@ async def ask_delete(cb: CallbackQuery):
             await _render_panel(cb.message, st, q=None, page=1)
             
         # Always include reply keyboard
-        chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
         if cb.message and isinstance(cb.message, Message):
             await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
     await cb.answer()

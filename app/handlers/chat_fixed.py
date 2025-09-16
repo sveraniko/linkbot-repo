@@ -59,6 +59,11 @@ async def on_free_text(message: Message):
             await st.commit()
             return await run_question_with_selection(message, st, stt, text)
 
+        # Check if we're awaiting search input - if so, don't process with LLM (LLM safety) (Hotfix F)
+        if stt.awaiting_ask_search:
+            # Don't process with LLM when awaiting search input
+            return
+
         chat_on, quiet_on, sources_mode, scope_mode = await get_chat_flags(st, message.from_user.id)
         if quiet_on:
             return

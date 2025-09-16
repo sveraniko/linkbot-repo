@@ -1,4 +1,5 @@
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, distinct
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Iterable
 from app.models import Project, Artifact, Chunk, UserState, Tag, artifact_tags, user_linked_projects
@@ -21,21 +22,52 @@ async def get_active_project(session: AsyncSession, user_id: int) -> Project | N
         return None
     return await session.get(Project, st.active_project_id)
 
-async def list_artifacts(session: AsyncSession, project: Project, kinds: set[str] | None = None, tags: set[str] | None = None) -> list[Artifact]:
-    """List artifacts with optional filtering by kinds and tags."""
-    q = select(Artifact).where(Artifact.project_id == project.id)
+async def list_artifacts(session: AsyncSession, project_ids: list[int], kinds: set[str] | None = None, tags: set[str] | None = None) -> list[Artifact]:
+    """List artifacts with optional filtering by kinds and tags.
+    
+    Args:
+        session: Database session
+        project_ids: List of project IDs to search in (includes active project and linked projects)
+        kinds: Optional set of artifact kinds to filter by
+        tags: Optional set of tags to filter by
+    """
+    # Log parameters for debugging (Hotfix A & B)
+    print(f"DEBUG: list_artifacts - project_ids={project_ids}, kinds={kinds}, tags={tags}")
+    
+    # Handle empty project_ids - if empty, return empty list (Hotfix B)
+    if not project_ids:
+        print("DEBUG: list_artifacts - empty project_ids, returning empty list")
+        return []
+    
+    # Use subquery approach to avoid DISTINCT ON issues (SPEC v2 requirement)
+    # Step 1: Create subquery with distinct artifact IDs and all filters
+    subq = select(Artifact.id).where(Artifact.project_id.in_(project_ids))
     
     if kinds:
-        q = q.where(Artifact.kind.in_(list(kinds)))
+        subq = subq.where(Artifact.kind.in_(list(kinds)))
     
     if tags:
-        q = q.join(artifact_tags, artifact_tags.c.artifact_id == Artifact.id)\
-             .join(Tag, Tag.name == artifact_tags.c.tag_name)\
-             .where(Tag.name.in_(list(tags))).distinct(Artifact.id)
+        # For tag filtering, join with artifact_tags and Tag tables within the subquery
+        tag_subq = (
+            select(distinct(artifact_tags.c.artifact_id))
+            .join(Tag, artifact_tags.c.tag_name == Tag.name)
+            .where(Tag.name.in_(list(tags)))
+            .where(artifact_tags.c.artifact_id == Artifact.id)  # Join condition
+        )
+        subq = subq.where(sa.exists(tag_subq))
     
-    q = q.order_by(Artifact.created_at.desc())
+    subq = subq.distinct()  # Ensure distinct IDs
+    
+    # Step 2: Main query using the subquery
+    q = select(Artifact).where(Artifact.id.in_(subq)).order_by(Artifact.created_at.desc())
+    
     res = await session.execute(q)
-    return list(res.scalars().all())
+    artifacts = list(res.scalars().all())
+    
+    # Log artifacts count for debugging (Hotfix A)
+    print(f"DEBUG: list_artifacts - project_ids={project_ids}, kinds={kinds}, tags={tags}, found_count={len(artifacts)}")
+    
+    return artifacts
 
 async def gather_context(session: AsyncSession, project: Project, user_id: int | None = None, max_chunks: int = 200) -> list[str]:
     """Gather context chunks with optional user-specific filtering."""
@@ -48,7 +80,7 @@ async def gather_context(session: AsyncSession, project: Project, user_id: int |
         pass
     
     # Get artifacts (with potential filtering)
-    artifacts = await list_artifacts(session, project, kinds=kinds, tags=tags)
+    artifacts = await list_artifacts(session, [project.id], kinds=kinds, tags=tags)
     
     context_chunks: list[str] = []
     for art in artifacts:
@@ -212,7 +244,7 @@ async def gather_context_sources(
     if not proj:
         return []
         
-    artifacts = await list_artifacts(session, proj, kinds=set(kinds) if kinds else None, tags=set(tags) if tags else None)
+    artifacts = await list_artifacts(session, [proj.id], kinds=set(kinds) if kinds else None, tags=set(tags) if tags else None)
     
     context_chunks: list[str] = []
     for art in artifacts:
