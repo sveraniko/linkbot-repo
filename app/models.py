@@ -101,6 +101,8 @@ class UserState(Base):
     # ASK panel pagination fields
     ask_page_msg_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
     ask_footer_msg_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ASK prompt message ID
+    ask_prompt_msg_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 class Repo(Base):
     __tablename__ = "repos"

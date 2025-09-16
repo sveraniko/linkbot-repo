@@ -1,389 +1,128 @@
-bot-1  | INFO:__main__:Starting Telegram bot...
-bot-1  | INFO:__main__:MinIO bucket ensured
-bot-1  | INFO:__main__:Bot commands set successfully
-bot-1  | INFO:__main__:Routers registered, starting polling...
-bot-1  | INFO:aiogram.dispatcher:Start polling
-bot-1  | INFO:aiogram.dispatcher:Run polling for bot @ProjectMemory_Bot id=8386572026 - 'ProjectMemoryBot'
-bot-1  | INFO:aiogram.event:Update id=658401530 is handled. Duration 154 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401531 is handled. Duration 170 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401532 is handled. Duration 186 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401533 is handled. Duration 139 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401534 is handled. Duration 102 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401535 is handled. Duration 147 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401536 is handled. Duration 55 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401537 is handled. Duration 200 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401538 is handled. Duration 113 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401539 is handled. Duration 133 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401540 is not handled. Duration 22 ms by bot id=8386572026
-bot-1  | ERROR:aiogram.event:Cause exception while process update id=658401540 by bot id=8386572026
-bot-1  | ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
-bot-1  | [SQL: SELECT DISTINCT ON (artifacts.id) artifacts.id, artifacts.project_id, artifacts.kind, artifacts.title, artifacts.raw_text, artifacts.uri, artifacts.pinned, artifacts.parent_id, artifacts.created_at
-bot-1  | FROM artifacts
-bot-1  | WHERE artifacts.project_id = $1::INTEGER AND lower(artifacts.title) LIKE $2::VARCHAR ORDER BY artifacts.created_at DESC
-bot-1  |  LIMIT $3::INTEGER OFFSET $4::INTEGER]
-bot-1  | [parameters: (1, '%женщины%', 10, 0)]
-bot-1  | (Background on this error at: https://sqlalche.me/e/20/f405)
-bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 521, in _prepare_and_execute
-bot-1  |     prepared_stmt, attributes = await adapt_connection._prepare(
-bot-1  |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 768, in _prepare
-bot-1  |     prepared_stmt = await self._connection.prepare(
-bot-1  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 635, in prepare
-bot-1  |     return await self._prepare(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 653, in _prepare
-bot-1  |     stmt = await self._get_statement(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 432, in _get_statement
-bot-1  |     statement = await self._protocol.prepare(
-bot-1  |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "asyncpg/protocol/protocol.pyx", line 165, in prepare
-bot-1  | asyncpg.exceptions.InvalidColumnReferenceError: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
-bot-1  |
-bot-1  | The above exception was the direct cause of the following exception:
-bot-1  |
-bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
-bot-1  |     self.dialect.do_execute(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
-bot-1  |     cursor.execute(statement, parameters)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
-bot-1  |     self._adapt_connection.await_(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
-bot-1  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
-bot-1  |     value = await result
-bot-1  |             ^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
-bot-1  |     self._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
-bot-1  |     self._adapt_connection._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
-bot-1  |     raise translated_error from error
-bot-1  | sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
-bot-1  |
-bot-1  | The above exception was the direct cause of the following exception:
-bot-1  |
-bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
-bot-1  |     response = await self.feed_update(bot, update, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
-bot-1  |     response = await self.update.wrap_outer_middleware(
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
-bot-1  |     return await handler(event, data)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
-bot-1  |     return await handler(event, data)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
-bot-1  |     return await handler(event, data)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
-bot-1  |     return await wrapped_inner(event, kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
-bot-1  |     return await wrapped()
-bot-1  |            ^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
-bot-1  |     return await self.propagate_event(update_type=update_type, event=event, **kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
-bot-1  |     return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
-bot-1  |     return await self._propagate_event(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 174, in _propagate_event
-bot-1  |     response = await router.propagate_event(update_type=update_type, event=event, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
-bot-1  |     return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
-bot-1  |     return await self._propagate_event(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 174, in _propagate_event
-bot-1  |     response = await router.propagate_event(update_type=update_type, event=event, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
-bot-1  |     return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
-bot-1  |     return await self._propagate_event(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
-bot-1  |     response = await observer.trigger(event, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
-bot-1  |     return await wrapped_inner(event, kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
-bot-1  |     return await wrapped()
-bot-1  |            ^^^^^^^^^^^^^^^
-bot-1  |   File "/app/app/handlers/chat.py", line 31, in on_free_text
-bot-1  |     return await ask_search_reply(message)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/app/app/handlers/ask.py", line 367, in ask_search_reply
-bot-1  |     await _render_panel(message, st, q=q, page=1)
-bot-1  |   File "/app/app/handlers/ask.py", line 207, in _render_panel
-bot-1  |     res = (await st.execute(base.limit(page_size).offset((page-1)*page_size))).scalars().all()
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
-bot-1  |     result = await greenlet_spawn(
-bot-1  |              ^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
-bot-1  |     result = context.throw(*sys.exc_info())
-bot-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
-bot-1  |     return self._execute_internal(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2251, in _execute_internal
-bot-1  |     result: Result[Any] = compile_state_cls.orm_execute_statement(
-bot-1  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
-bot-1  |     result = conn.execute(
-bot-1  |              ^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
-bot-1  |     return meth(
-bot-1  |            ^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
-bot-1  |     return connection._execute_clauseelement(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
-bot-1  |     ret = self._execute_context(
-bot-1  |           ^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
-bot-1  |     return self._exec_single_context(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
-bot-1  |     self._handle_dbapi_exception(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
-bot-1  |     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
-bot-1  |     self.dialect.do_execute(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
-bot-1  |     cursor.execute(statement, parameters)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
-bot-1  |     self._adapt_connection.await_(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
-bot-1  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
-bot-1  |     value = await result
-bot-1  |             ^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
-bot-1  |     self._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
-bot-1  |     self._adapt_connection._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
-bot-1  |     raise translated_error from error
-bot-1  | sqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
-bot-1  | [SQL: SELECT DISTINCT ON (artifacts.id) artifacts.id, artifacts.project_id, artifacts.kind, artifacts.title, artifacts.raw_text, artifacts.uri, artifacts.pinned, artifacts.parent_id, artifacts.created_at
-bot-1  | FROM artifacts
-bot-1  | WHERE artifacts.project_id = $1::INTEGER AND lower(artifacts.title) LIKE $2::VARCHAR ORDER BY artifacts.created_at DESC
-bot-1  |  LIMIT $3::INTEGER OFFSET $4::INTEGER]
-bot-1  | [parameters: (1, '%женщины%', 10, 0)]
-bot-1  | (Background on this error at: https://sqlalche.me/e/20/f405)
-bot-1  | INFO:aiogram.event:Update id=658401541 is handled. Duration 273 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401542 is not handled. Duration 17 ms by bot id=8386572026
-bot-1  | ERROR:aiogram.event:Cause exception while process update id=658401542 by bot id=8386572026
-bot-1  | ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
-bot-1  | [SQL: SELECT DISTINCT ON (artifacts.id) artifacts.id, artifacts.project_id, artifacts.kind, artifacts.title, artifacts.raw_text, artifacts.uri, artifacts.pinned, artifacts.parent_id, artifacts.created_at
-bot-1  | FROM artifacts
-bot-1  | WHERE artifacts.project_id = $1::INTEGER AND artifacts.id IN (SELECT DISTINCT artifact_tags.artifact_id
-bot-1  | FROM artifact_tags JOIN tags ON artifact_tags.tag_name = tags.name
-bot-1  | WHERE lower(tags.name) LIKE $2::VARCHAR) ORDER BY artifacts.created_at DESC
-bot-1  |  LIMIT $3::INTEGER OFFSET $4::INTEGER]
-bot-1  | [parameters: (1, '%woman%', 10, 0)]
-bot-1  | (Background on this error at: https://sqlalche.me/e/20/f405)
-bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 521, in _prepare_and_execute
-bot-1  |     prepared_stmt, attributes = await adapt_connection._prepare(
-bot-1  |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 768, in _prepare
-bot-1  |     prepared_stmt = await self._connection.prepare(
-bot-1  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 635, in prepare
-bot-1  |     return await self._prepare(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 653, in _prepare
-bot-1  |     stmt = await self._get_statement(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 432, in _get_statement
-bot-1  |     statement = await self._protocol.prepare(
-bot-1  |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "asyncpg/protocol/protocol.pyx", line 165, in prepare
-bot-1  | asyncpg.exceptions.InvalidColumnReferenceError: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
-bot-1  |
-bot-1  | The above exception was the direct cause of the following exception:
-bot-1  |
-bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
-bot-1  |     self.dialect.do_execute(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
-bot-1  |     cursor.execute(statement, parameters)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
-bot-1  |     self._adapt_connection.await_(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
-bot-1  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
-bot-1  |     value = await result
-bot-1  |             ^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
-bot-1  |     self._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
-bot-1  |     self._adapt_connection._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
-bot-1  |     raise translated_error from error
-bot-1  | sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
-bot-1  |
-bot-1  | The above exception was the direct cause of the following exception:
-bot-1  |
-bot-1  | Traceback (most recent call last):
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
-bot-1  |     response = await self.feed_update(bot, update, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
-bot-1  |     response = await self.update.wrap_outer_middleware(
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
-bot-1  |     return await handler(event, data)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
-bot-1  |     return await handler(event, data)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
-bot-1  |     return await handler(event, data)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
-bot-1  |     return await wrapped_inner(event, kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
-bot-1  |     return await wrapped()
-bot-1  |            ^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
-bot-1  |     return await self.propagate_event(update_type=update_type, event=event, **kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
-bot-1  |     return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
-bot-1  |     return await self._propagate_event(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 174, in _propagate_event
-bot-1  |     response = await router.propagate_event(update_type=update_type, event=event, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
-bot-1  |     return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
-bot-1  |     return await self._propagate_event(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 174, in _propagate_event
-bot-1  |     response = await router.propagate_event(update_type=update_type, event=event, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
-bot-1  |     return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
-bot-1  |     return await self._propagate_event(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
-bot-1  |     response = await observer.trigger(event, **kwargs)
-bot-1  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
-bot-1  |     return await wrapped_inner(event, kwargs)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
-bot-1  |     return await wrapped()
-bot-1  |            ^^^^^^^^^^^^^^^
-bot-1  |   File "/app/app/handlers/chat.py", line 31, in on_free_text
-bot-1  |     return await ask_search_reply(message)
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/app/app/handlers/ask.py", line 367, in ask_search_reply
-bot-1  |     await _render_panel(message, st, q=q, page=1)
-bot-1  |   File "/app/app/handlers/ask.py", line 207, in _render_panel
-bot-1  |     res = (await st.execute(base.limit(page_size).offset((page-1)*page_size))).scalars().all()
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
-bot-1  |     result = await greenlet_spawn(
-bot-1  |              ^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
-bot-1  |     result = context.throw(*sys.exc_info())
-bot-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
-bot-1  |     return self._execute_internal(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2251, in _execute_internal
-bot-1  |     result: Result[Any] = compile_state_cls.orm_execute_statement(
-bot-1  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
-bot-1  |     result = conn.execute(
-bot-1  |              ^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
-bot-1  |     return meth(
-bot-1  |            ^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
-bot-1  |     return connection._execute_clauseelement(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
-bot-1  |     ret = self._execute_context(
-bot-1  |           ^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
-bot-1  |     return self._exec_single_context(
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
-bot-1  |     self._handle_dbapi_exception(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
-bot-1  |     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
-bot-1  |     self.dialect.do_execute(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
-bot-1  |     cursor.execute(statement, parameters)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
-bot-1  |     self._adapt_connection.await_(
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
-bot-1  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
-bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
-bot-1  |     value = await result
-bot-1  |             ^^^^^^^^^^^^
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
-bot-1  |     self._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
-bot-1  |     self._adapt_connection._handle_exception(error)
-bot-1  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
-bot-1  |     raise translated_error from error
-bot-1  | sqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: SELECT DISTINCT ON expressions must match initial ORDER BY expressions
-bot-1  | [SQL: SELECT DISTINCT ON (artifacts.id) artifacts.id, artifacts.project_id, artifacts.kind, artifacts.title, artifacts.raw_text, artifacts.uri, artifacts.pinned, artifacts.parent_id, artifacts.created_at
-bot-1  | FROM artifacts
-bot-1  | WHERE artifacts.project_id = $1::INTEGER AND artifacts.id IN (SELECT DISTINCT artifact_tags.artifact_id
-bot-1  | FROM artifact_tags JOIN tags ON artifact_tags.tag_name = tags.name
-bot-1  | WHERE lower(tags.name) LIKE $2::VARCHAR) ORDER BY artifacts.created_at DESC
-bot-1  |  LIMIT $3::INTEGER OFFSET $4::INTEGER]
-bot-1  | [parameters: (1, '%woman%', 10, 0)]
-bot-1  | (Background on this error at: https://sqlalche.me/e/20/f405)
-bot-1  | INFO:aiogram.event:Update id=658401543 is handled. Duration 80 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401544 is handled. Duration 664 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401545 is handled. Duration 147 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401546 is handled. Duration 178 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401547 is handled. Duration 124 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401548 is handled. Duration 124 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401549 is handled. Duration 68 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401550 is handled. Duration 147 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401551 is handled. Duration 238 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401552 is handled. Duration 237 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401553 is handled. Duration 117 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401554 is handled. Duration 52 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401555 is handled. Duration 140 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401556 is handled. Duration 101 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401557 is handled. Duration 103 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401558 is handled. Duration 65 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401559 is handled. Duration 54 ms by bot id=8386572026
-bot-1  | INFO:aiogram.event:Update id=658401560 is handled. Duration 192 ms by bot id=8386572026
+ File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 143, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 3301, in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 447, in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 711, in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/impl.py", line 306, in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 388, in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 673, in __init__
+    self.__connect()
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 899, in __connect
+    with util.safe_reraise():
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 895, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/create.py", line 661, in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 629, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/psycopg/connection.py", line 125, in connect
+    raise type(last_ex)("\n".join(lines)).with_traceback(None)
+psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+Multiple connection attempts failed. All failures were:
+- host: 'localhost', port: 5432, hostaddr: '::1': connection failed: connection to server at "::1", port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+- host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection failed: connection to server at "127.0.0.1", port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/bin/alembic", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/alembic/config.py", line 1022, in main
+    CommandLine(prog=prog).main(argv=argv)
+  File "/usr/local/lib/python3.11/site-packages/alembic/config.py", line 1012, in main
+    self.run_cmd(cfg, options)
+  File "/usr/local/lib/python3.11/site-packages/alembic/config.py", line 946, in run_cmd
+    fn(
+  File "/usr/local/lib/python3.11/site-packages/alembic/command.py", line 483, in upgrade
+    script.run_env()
+  File "/usr/local/lib/python3.11/site-packages/alembic/script/base.py", line 549, in run_env
+    util.load_python_file(self.dir, "env.py")
+  File "/usr/local/lib/python3.11/site-packages/alembic/util/pyfiles.py", line 116, in load_python_file
+    module = load_module_py(module_id, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/alembic/util/pyfiles.py", line 136, in load_module_py
+    spec.loader.exec_module(module)  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/alembic/env.py", line 52, in <module>
+    run_migrations_online()
+  File "/app/alembic/env.py", line 44, in run_migrations_online
+    with connectable.connect() as connection:
+         ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 3277, in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
+    Connection._handle_dbapi_exception_noconnection(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2440, in _handle_dbapi_exception_noconnection
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 143, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 3301, in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 447, in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 711, in checkout
+    rec = pool._do_get()
+          ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/impl.py", line 306, in _do_get
+    return self._create_connection()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 388, in _create_connection
+    return _ConnectionRecord(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 673, in __init__
+    self.__connect()
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 899, in __connect
+    with util.safe_reraise():
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 895, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/create.py", line 661, in connect
+    return dialect.connect(*cargs, **cparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 629, in connect
+    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/psycopg/connection.py", line 125, in connect
+    raise type(last_ex)("\n".join(lines)).with_traceback(None)
+sqlalchemy.exc.OperationalError: (psycopg.OperationalError) connection failed: connection to server at "127.0.0.1", port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+Multiple connection attempts failed. All failures were:
+- host: 'localhost', port: 5432, hostaddr: '::1': connection failed: connection to server at "::1", port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+- host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection failed: connection to server at "127.0.0.1", port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+(Background on this error at: https://sqlalche.me/e/20/e3q8)

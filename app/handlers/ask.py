@@ -737,22 +737,11 @@ async def ask_clear(cb: CallbackQuery):
 @router.callback_query(F.data == "aw:arm")
 async def ask_arm(cb: CallbackQuery):
     if not cb.from_user:
-        # Always include reply keyboard
-        # Removed temporary "..." message
-        # async with session_scope() as st:
-        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-        #     if cb.message:
-        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Invalid user")
     async with session_scope() as st:
         stt = await _ensure_user_state(st, cb.from_user.id)
         sel = _ids_get(stt)
         if not sel:
-            # Always include reply keyboard
-            # Removed temporary "..." message
-            # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
-            # if cb.message:
-            #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
             return await cb.answer("Не выбрано ни одного источника", show_alert=True)
         stt.ask_armed = True
         await st.commit()
@@ -763,21 +752,21 @@ async def ask_arm(cb: CallbackQuery):
                 inline_kb = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="Включить чат", callback_data="aw:toggle_chat")]
                 ])
-                await cb.message.answer(
+                # Store message ID for later editing
+                prompt_msg = await cb.message.answer(
                     "Включи чат (кнопка внизу), затем отправь вопрос", 
                     reply_markup=inline_kb
                 )
-                # Also send the reply keyboard to prevent it from disappearing
-                # Removed temporary "..." message
-                # await cb.message.answer("...", reply_markup=main_reply_kb(False))
+                # Store prompt message ID for later editing
+                stt.ask_prompt_msg_id = prompt_msg.message_id
+                await st.commit()
             else:
-                await cb.message.answer("Введите вопрос…", reply_markup=ForceReply(selective=True))
+                # Send ForceReply prompt and store its message ID
+                prompt_msg = await cb.message.answer("Введите вопрос…", reply_markup=ForceReply(selective=True))
+                # Store prompt message ID for later deletion
+                stt.ask_prompt_msg_id = prompt_msg.message_id
+                await st.commit()
                 
-        # Always include reply keyboard
-        # Removed temporary "..." message
-        # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
-        # if cb.message:
-        #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
     await cb.answer()
 
 @router.callback_query(F.data == "aw:toggle_chat")
@@ -896,3 +885,133 @@ async def run_question_with_selection(message: Message, prompt: str):
         # Always include reply keyboard to prevent it from disappearing
         chat_on, *_ = await get_chat_flags(st, message.from_user.id)
         await message.answer("...", reply_markup=main_reply_kb(chat_on))
+
+# Handler for receiving user questions when ask_armed is True
+@router.message(F.reply_to_message & F.reply_to_message.text == "Введите вопрос…")
+async def ask_receive_question(message: Message):
+    """Handler for receiving user questions and processing LLM requests."""
+    if not message.from_user or not message.text:
+        return
+    
+    user_id = message.from_user.id
+    question = message.text.strip()
+    
+    # Validate that we have a question
+    if not question:
+        # Send toast message directly since we don't have a callback query
+        if message.bot:
+            await message.bot.send_message(chat_id=message.chat.id, text="Пожалуйста, введите вопрос")
+        return
+    
+    async with session_scope() as st:
+        stt = await _ensure_user_state(st, user_id)
+        
+        # Check if we're in ask mode
+        if not stt.ask_armed:
+            return
+        
+        # Get selected sources
+        selected_ids = _ids_get(stt)
+        if not selected_ids:
+            # Send toast message directly since we don't have a callback query
+            if message.bot:
+                await message.bot.send_message(chat_id=message.chat.id, text="Выберите источники перед отправкой вопроса")
+            # Redirect to list view
+            await _render_panel(message, st, q=None, page=1, user_id=user_id)
+            return
+        
+        # Delete prompt and user question messages
+        if stt.ask_prompt_msg_id and message.reply_to_message and message.bot:
+            await _safe_delete(message.bot, message.chat.id, stt.ask_prompt_msg_id)
+        if message.message_id and message.bot:
+            await _safe_delete(message.bot, message.chat.id, message.message_id)
+        
+        # Clear the ask_prompt_msg_id since we've deleted the message
+        stt.ask_prompt_msg_id = None
+        await st.commit()
+        
+        # Send "Preparing answer..." message
+        preparing_msg = await message.answer("Готовлю ответ…")
+        
+        try:
+            # Run LLM pipeline
+            response_text, metadata = await run_llm_pipeline(
+                user_id=user_id,
+                selected_artifact_ids=selected_ids,
+                question=question,
+                preparing_msg=preparing_msg
+            )
+            
+            # Edit the "Preparing answer..." message with the actual response
+            await preparing_msg.edit_text(response_text)
+            
+            # Update budget if auto-clear is enabled
+            if stt.auto_clear_selection:
+                _ids_set(stt, [])
+                # Update panel with new budget
+                budget_label = await _calc_budget_label(st, [])
+                controls = _panel_kb(0, budget_label, stt.auto_clear_selection)
+                await message.answer("ASK панель:", reply_markup=controls)
+            
+            # Reset ask armed flag
+            stt.ask_armed = False
+            await st.commit()
+            
+        except Exception as e:
+            # Handle errors gracefully
+            error_msg = f"Ошибка при обработке запроса: {str(e)}"
+            await preparing_msg.edit_text(error_msg)
+            import logging
+            logging.error(f"LLM pipeline error for user {user_id}: {e}", exc_info=True)
+
+async def run_llm_pipeline(
+    user_id: int,
+    selected_artifact_ids: list[int],
+    question: str,
+    preparing_msg: Message
+) -> tuple[str, dict]:
+    """
+    Run the complete LLM pipeline.
+    
+    Returns:
+        Tuple of (response_text, metadata)
+    """
+    # Import services
+    from app.services.retrieval import load_selected_sources, extract_chunks_for_context
+    from app.services.token_budget import calculate_token_budget, allocate_budget_per_source
+    from app.services.prompt_builder import build_system_prompt, build_context_prompt, build_user_prompt, format_source_chips
+    from app.services.llm import call_llm_with_retry
+    
+    # Load selected sources
+    sources, total_tokens = await load_selected_sources(user_id, selected_artifact_ids)
+    
+    # Calculate token budget
+    from app.config import settings
+    import os
+    model = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    max_tokens_out = int(os.getenv("LLM_MAX_TOKENS_OUT", "2048"))
+    
+    token_budget = calculate_token_budget(model, max_tokens_out)
+    
+    # Extract chunks based on budget
+    extracted_chunks = extract_chunks_for_context(sources, token_budget)
+    
+    # Build prompts
+    system_prompt = build_system_prompt()
+    context_prompt = build_context_prompt(sources)
+    user_prompt = build_user_prompt(question)
+    
+    # Call LLM with retry logic
+    response_text, metadata = await call_llm_with_retry(
+        system_prompt=system_prompt,
+        context_prompt=context_prompt,
+        user_prompt=user_prompt,
+        model=model,
+        max_tokens=max_tokens_out
+    )
+    
+    # Format response with source chips
+    source_chips = format_source_chips(sources)
+    formatted_response = response_text + source_chips
+    
+    return formatted_response, metadata

@@ -11,8 +11,8 @@ services:
       timeout: 3s
       retries: 20
     # Внешний порт БД не публикуем — боту он не нужен
-    expose:
-      - "5432"
+    ports:
+      - "5432:5432"
     volumes:
       - linkbot_db_data:/var/lib/postgresql/data
 
@@ -44,7 +44,7 @@ services:
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql+asyncpg://memuser:secret@db:5432/memdb
       - PROJECT_MAX_CHUNKS=${PROJECT_MAX_CHUNKS}
       - CHUNK_SIZE=${CHUNK_SIZE}
       - CHUNK_OVERLAP=${CHUNK_OVERLAP}
@@ -53,10 +53,16 @@ services:
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
       - MINIO_BUCKET=${MINIO_BUCKET}
       - MINIO_SECURE=${MINIO_SECURE}
+      - LLM_DISABLED=${LLM_DISABLED}
+      - LLM_MODEL=${LLM_MODEL}
+      - LLM_TIMEOUT=${LLM_TIMEOUT}
+      - LLM_MAX_TOKENS_OUT=${LLM_MAX_TOKENS_OUT}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE}
+      - DOCKER_ENV=true
     volumes:
       - ./:/app
       - repos_data:/app/repos   # локальный кэш git
-    command: ["sh","-c","python -m app.main"]  # ← БЕЗ alembic
+    command: ["sh","-c","alembic upgrade head && python -m app.main"]  # Run migrations before starting the bot
 
 volumes:
   linkbot_db_data:

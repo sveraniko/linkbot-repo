@@ -16,6 +16,11 @@ config = context.config
 # url из .env: asyncpg -> psycopg (только для alembic)
 url = settings.DATABASE_URL
 url = url.replace("asyncpg", "psycopg")
+
+# When running inside Docker, use the db service name
+if os.environ.get('DOCKER_ENV') == 'true':
+    url = url.replace('localhost', 'db').replace('127.0.0.1', 'db')
+
 config.set_main_option("sqlalchemy.url", url)
 
 if config.config_file_name is not None:
