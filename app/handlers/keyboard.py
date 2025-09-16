@@ -10,10 +10,9 @@ router = Router(name="keyboard")
 BTN_ACTIONS = "⚙️ Actions"
 BTN_CHAT_ON = "💬 Chat: ON"
 BTN_CHAT_OFF = "😴 Chat: OFF"
-BTN_ASK = "ASK-WIZARD ❓"
-BTN_MEMORY = "🧠 Memory"
+BTN_ASK = "❓ ASK‑WIZARD"
 
-SERVICE_TEXTS = {BTN_ACTIONS, BTN_ASK, BTN_CHAT_ON, BTN_CHAT_OFF, BTN_MEMORY, "Меню", "Menu", "Chat"}
+SERVICE_TEXTS = {BTN_ACTIONS, BTN_ASK, BTN_CHAT_ON, BTN_CHAT_OFF, "Меню", "Menu", "Chat"}
 
 def main_reply_kb(chat_on: bool) -> ReplyKeyboardMarkup:
     chat_label = BTN_CHAT_ON if chat_on else BTN_CHAT_OFF
@@ -23,8 +22,6 @@ def main_reply_kb(chat_on: bool) -> ReplyKeyboardMarkup:
             KeyboardButton(text=BTN_ACTIONS),
             KeyboardButton(text=chat_label),
             KeyboardButton(text=BTN_ASK),
-        ], [
-            KeyboardButton(text=BTN_MEMORY),  # Add Memory button to bottom row
         ]],
     )
 
@@ -51,6 +48,14 @@ async def open_actions_from_kb(message: Message):
     # лучше вернуть подсказку, чем молчать
     return await message.answer("Открой меню командой /menu")
 
+@router.message(F.text == BTN_ASK)
+async def open_ask_from_kb(message: Message):
+    """
+    Open ASK-WIZARD panel from the keyboard button.
+    """
+    from app.handlers.ask import ask_open
+    return await ask_open(message)
+
 @router.message(F.text.in_({BTN_CHAT_ON, BTN_CHAT_OFF}))
 async def kb_chat_toggle(message: Message):
     """Toggle Chat ON/OFF and rebuild the bottom-row keyboard. Never call LLM here."""
@@ -70,12 +75,4 @@ async def kb_chat_toggle(message: Message):
             reply_markup=main_reply_kb(new_state),
         )
 
-@router.message(F.text == BTN_MEMORY)
-async def open_memory_from_kb(message: Message):
-    """
-    Открывает панель Memory по кнопке снизу.
-    """
-    from app.handlers.memory_panel import memory_open
-    return await memory_open(message)
-
-__all__ = ["main_reply_kb", "SERVICE_TEXTS", "BTN_ACTIONS", "BTN_CHAT_ON", "BTN_CHAT_OFF", "BTN_ASK", "BTN_MEMORY", "router"]
+__all__ = ["main_reply_kb", "SERVICE_TEXTS", "BTN_ACTIONS", "BTN_CHAT_ON", "BTN_CHAT_OFF", "BTN_ASK", "router"]

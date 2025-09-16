@@ -23,7 +23,7 @@ from app.config import settings
 from app.storage import save_file
 from app.ignore import load_pmignore, iter_text_files
 from app.utils.zipfix import fix_zip_name, decode_text_bytes
-# LLM is explicitly disabled in test mode — do NOT import ask_llm here.
+from app.utils.tg import _toast, _safe_delete, _send_ephemeral  # Add this import
 
 # Add Berlin timezone
 BERLIN = ZoneInfo("Europe/Berlin")
@@ -81,7 +81,7 @@ def _format_selected_summary(artifacts: list[Artifact]) -> str:
 def _panel_kb(selected_count: int, budget_label: str, auto_clear: bool) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     # Step 1: Search is always available
-    b.button(text="🔍", callback_data="aw:search")
+    b.button(text="📋 List", callback_data="aw:list")
     # Step 2: Ask appears only when at least one source is selected
     if selected_count > 0:
         b.button(text="❓ Ask", callback_data="aw:arm")
@@ -126,20 +126,24 @@ def _parse_search_query(q: str) -> tuple[list[str], list[str], str | None]:
     # Otherwise, treat as title search
     return [], [], q
 
-async def _render_panel(m: Message, st, q: str | None = None, page: int = 1):
-    if not m.from_user:
+async def _render_panel(m: Message, st, q: str | None = None, page: int = 1, user_id: int | None = None):
+    # Use provided user_id if available, otherwise fallback to m.from_user.id
+    actual_user_id = user_id if user_id is not None else (m.from_user.id if m.from_user else None)
+    if not actual_user_id:
         return
-    proj = await get_active_project(st, m.from_user.id)
+    proj = await get_active_project(st, actual_user_id)
+    print(f"DEBUG: proj: {proj}")
     if not proj:
+        print(f"DEBUG: No active project found for user {actual_user_id}")
         # Always include reply keyboard to prevent it from disappearing
-        chat_on, *_ = await get_chat_flags(st, m.from_user.id)
+        chat_on, *_ = await get_chat_flags(st, actual_user_id)
         await m.answer("Нет активного проекта. Создай или выбери.", reply_markup=main_reply_kb(chat_on))
         return
-    stt = await _ensure_user_state(st, m.from_user.id)
+    stt = await _ensure_user_state(st, actual_user_id)
     sel = set(_ids_get(stt))
     
     # Get linked project IDs for proper search scope (Hotfix B)
-    linked_project_ids = await get_linked_project_ids(st, m.from_user.id)
+    linked_project_ids = await get_linked_project_ids(st, actual_user_id)
     # Combine active project ID with linked project IDs
     project_ids = [proj.id] + linked_project_ids
     
@@ -242,6 +246,29 @@ async def _render_panel(m: Message, st, q: str | None = None, page: int = 1):
             seen_ids.add(artifact.id)
     res = unique_res
 
+    # Send header with search functionality
+    if m.bot:
+        # Header message with search button
+        header_builder = InlineKeyboardBuilder()
+        header_builder.button(text="🔍", callback_data="aw:search")
+        header_text = "Найти источник"
+        
+        # If there's an active search, show search chip
+        if q:
+            header_text = f'Поиск: "{q}"'
+            header_builder.button(text="✖ Очистить", callback_data="aw:clear_search")
+            header_builder.adjust(2)
+        else:
+            header_builder.adjust(1)
+            
+        # Send header message
+        header_msg = await m.bot.send_message(
+            chat_id=m.chat.id,
+            text=header_text,
+            reply_markup=header_builder.as_markup()
+        )
+        header_msg_id = header_msg.message_id
+
     # Send each artifact as a separate message with its own inline keyboard
     if m.bot:
         # Delete previous messages if this is a pagination action
@@ -249,21 +276,21 @@ async def _render_panel(m: Message, st, q: str | None = None, page: int = 1):
             try:
                 msg_ids = [int(id_str) for id_str in stt.ask_page_msg_ids.split(',') if id_str.strip()]
                 for msg_id in msg_ids:
-                    await m.bot.delete_message(chat_id=m.chat.id, message_id=msg_id)
+                    await _safe_delete(m.bot, m.chat.id, msg_id)
             except Exception:
                 pass  # Ignore errors when deleting messages
         
         # Delete previous footer message if it exists
         if stt.ask_footer_msg_id:
             try:
-                await m.bot.delete_message(chat_id=m.chat.id, message_id=stt.ask_footer_msg_id)
+                await _safe_delete(m.bot, m.chat.id, stt.ask_footer_msg_id)
             except Exception:
                 pass  # Ignore errors when deleting messages
         
         # Send new messages
         sent_msg_ids = []
-        for a in res:
-            # Create artifact text line
+        for i, a in enumerate(res, 1):
+            # Create artifact text line in required format (N. <Название> [#tag1 #tag2] (id 689..., 2025-09-16))
             tags = ""
             if a.tags:
                 tag_list = [t.name for t in a.tags]
@@ -271,11 +298,11 @@ async def _render_panel(m: Message, st, q: str | None = None, page: int = 1):
                     tags = " [" + " ".join(escape(t) for t in tag_list[:3]) + "]"
             title = escape((a.title or str(a.id))[:80])
             created_at = a.created_at.strftime("%Y-%m-%d") if a.created_at else ""
-            text_line = f"{title}{tags} (id {a.id}{', ' + created_at if created_at else ''})"
+            text_line = f"{i}. {title}{tags} (id {a.id}{', ' + created_at if created_at else ''})"
             
             # Create inline keyboard for this artifact
             kb = InlineKeyboardBuilder()
-            mark = "🧺" if a.id in sel else "➕"
+            mark = "✅" if a.id in sel else "➕"
             kb.button(text=mark, callback_data=f"aw:toggle:{a.id}")
             kb.button(text="🗑", callback_data=f"aw:delete:{a.id}")
             kb.adjust(2)
@@ -335,6 +362,7 @@ async def _render_panel(m: Message, st, q: str | None = None, page: int = 1):
         total_count = count_result.scalar_one_or_none() or 0
         total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 1
         
+        footer_msg_id = None
         if total_pages > 1:
             footer_builder = InlineKeyboardBuilder()
             if page > 1:
@@ -350,17 +378,22 @@ async def _render_panel(m: Message, st, q: str | None = None, page: int = 1):
                 reply_markup=footer_builder.as_markup()
             )
             # Store footer message ID
-            stt.ask_footer_msg_id = footer_msg.message_id
+            footer_msg_id = footer_msg.message_id
         else:
             stt.ask_footer_msg_id = None
+        
+        # Update state with new message IDs
+        stt.ask_page_msg_ids = ",".join(sent_msg_ids) if sent_msg_ids else None
+        stt.ask_footer_msg_id = footer_msg_id
         
         await st.commit()
     
     # Always send reply keyboard to prevent it from disappearing
-    chat_on, *_ = await get_chat_flags(st, m.from_user.id)
-    await m.answer("...", reply_markup=main_reply_kb(chat_on))
+    chat_on, *_ = await get_chat_flags(st, actual_user_id)
+    # Removed temporary "..." message - using toast instead
+    # await m.answer("...", reply_markup=main_reply_kb(chat_on))
 
-@router.message(F.text == "ASK-WIZARD ❓")
+@router.message(F.text == "❓ ASK‑WIZARD")
 async def ask_open(message: Message):
     """Open ASK wizard root. This never calls LLM."""
     if not message.from_user:
@@ -369,15 +402,59 @@ async def ask_open(message: Message):
         stt = await _ensure_user_state(st, message.from_user.id)
         stt.ask_armed = False
         await st.flush()
-        budget_label = await _calc_budget_label(st, _ids_get(stt))
+        
+        # Get active project for display
+        active_proj = await get_active_project(st, message.from_user.id)
+        proj_name = active_proj.name if active_proj else "Нет проекта"
+        
+        # Get linked projects for display
+        linked_ids = await get_linked_project_ids(st, message.from_user.id)
+        linked_status = "Linked: ON" if linked_ids else "Linked: OFF"
+        
+        # Get selected artifacts count and budget
+        selected_ids = _ids_get(stt)
+        selected_count = len(selected_ids)
+        budget_label = await _calc_budget_label(st, selected_ids)
+        
+        # Build home panel text
+        panel_text = f"ASK‑WIZARD (проект: {proj_name})\n"
+        if linked_ids:
+            panel_text += f"🔒 {linked_status}\n"
+        
+        # Build inline keyboard for home panel
+        b = InlineKeyboardBuilder()
+        
+        # Search button (always available) - changed to just "🔍" to match specification
+        b.button(text="📋 List", callback_data="aw:list")
+        
+        # Ask button (only when sources selected)
+        if selected_count > 0:
+            b.button(text="❓ Ask", callback_data="aw:arm")
+        b.adjust(2)
+        
+        # Auto-clear toggle
+        b.button(text=f"Auto-clear: {'ON' if stt.auto_clear_selection else 'OFF'}", callback_data="aw:autoclear")
+        
+        # Reset button
+        b.button(text="❌ Сброс", callback_data="aw:clear")
+        b.adjust(2, 2)
+        
+        # Import last button
+        b.button(text="📥 Import last", callback_data="aw:import_last")
+        b.adjust(2, 2, 1)
+        
+        # Budget display (non-interactive)
+        b.button(text=budget_label or "Бюджет: ~0 токенов", callback_data="aw:noop")
+        b.adjust(2, 2, 1, 1)
+        
         await message.answer(
-            "ASK панель:",
-            reply_markup=_panel_kb(selected_count=len(_ids_get(stt)), budget_label=budget_label, auto_clear=stt.auto_clear_selection),
+            panel_text,
+            reply_markup=b.as_markup(),
         )
         
         # Always include reply keyboard
         chat_on, *_ = await get_chat_flags(st, message.from_user.id)
-        await message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message - using proper keyboard only
 
 @router.callback_query(F.data == "aw:search")
 async def ask_search(cb: CallbackQuery):
@@ -385,24 +462,29 @@ async def ask_search(cb: CallbackQuery):
         # Always include reply keyboard
         async with session_scope() as st:
             chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+            # Removed temporary "..." message
+            # if cb.message:
+            #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Invalid user")
     await cb.answer()
     if cb.message:
-        await cb.message.answer("Введи название, #тег или id:...", reply_markup=ForceReply(selective=True))
+        prompt_msg = await cb.message.answer("Введи название, #тег или id:...", reply_markup=ForceReply(selective=True))
         
-        # Set the awaiting_ask_search flag
+        # Set the awaiting_ask_search flag and store prompt message ID
         async with session_scope() as st:
             stt = await _ensure_user_state(st, cb.from_user.id)
             stt.awaiting_ask_search = True
+            # Store the prompt message ID for later cleanup
+            # Note: We'll need to store this in a different way since UserState doesn't have ask_prompt_msg_id
+            # For now, we'll handle cleanup in the reply handler
             await st.commit()
         
         # Always include reply keyboard
-        async with session_scope() as st:
-            chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # async with session_scope() as st:
+        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+        #     if cb.message:
+        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
 
 @router.message(F.reply_to_message & (F.reply_to_message.text == "Введи название, #тег или id:..."))
 async def ask_search_reply(message: Message):
@@ -431,11 +513,45 @@ async def ask_search_reply(message: Message):
         
         await st.commit()
         
-        await _render_panel(message, st, q=q, page=1)
+        await _render_panel(message, st, q=q, page=1, user_id=message.from_user.id if message.from_user else None)
         
         # Always include reply keyboard
         chat_on, *_ = await get_chat_flags(st, message.from_user.id)
-        await message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # await message.answer("...", reply_markup=main_reply_kb(chat_on))
+        
+        # Delete the prompt message and user's reply message
+        if message.reply_to_message and message.bot:
+            await _safe_delete(message.bot, message.chat.id, message.reply_to_message.message_id)
+        if message.message_id and message.bot:
+            await _safe_delete(message.bot, message.chat.id, message.message_id)
+
+@router.callback_query(F.data == "aw:list")
+async def ask_open_list(cb: CallbackQuery):
+    """Open the ASK list view (page 1) from the home panel. No LLM involved."""
+    if not cb.from_user:
+        # Always include reply keyboard
+        async with session_scope() as st:
+            chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+            # Removed temporary "..." message
+            # if cb.message:
+            #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        return await cb.answer("Invalid user")
+    async with session_scope() as st:
+        # Debug: Check if we can get the active project
+        active_proj = await get_active_project(st, cb.from_user.id)
+        print(f"DEBUG: active_proj: {active_proj}")
+        if active_proj:
+            print(f"DEBUG: active_proj.id: {active_proj.id}, active_proj.name: {active_proj.name}")
+        
+        if cb.message and isinstance(cb.message, Message):
+            await _render_panel(cb.message, st, q=None, page=1, user_id=cb.from_user.id)
+        # Always include reply keyboard
+        # Removed temporary "..." message
+        # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+        # if cb.message and isinstance(cb.message, Message):
+        #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+    await cb.answer()
 
 @router.callback_query(F.data.startswith("aw:page:"))
 async def ask_page(cb: CallbackQuery):
@@ -448,31 +564,34 @@ async def ask_page(cb: CallbackQuery):
             page = 1
     async with session_scope() as st:
         if cb.message and isinstance(cb.message, Message):
-            await _render_panel(cb.message, st, q=None, page=page)
+            await _render_panel(cb.message, st, q=None, page=page, user_id=cb.from_user.id if cb.from_user else None)
             
         # Always include reply keyboard
-        chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-        if cb.message and isinstance(cb.message, Message):
-            await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        # if cb.message and isinstance(cb.message, Message):
+        #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
     await cb.answer()
 
 @router.callback_query(F.data.startswith("aw:toggle:"))
 async def ask_toggle(cb: CallbackQuery):
     if not (cb.from_user and cb.data):
         # Always include reply keyboard
-        async with session_scope() as st:
-            chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # async with session_scope() as st:
+        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        #     if cb.message:
+        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Invalid")
     try:
         art_id = int(cb.data.split(":", 2)[-1])
     except Exception:
         # Always include reply keyboard
-        async with session_scope() as st:
-            chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # async with session_scope() as st:
+        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        #     if cb.message:
+        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Bad id")
     async with session_scope() as st:
         stt = await _ensure_user_state(st, cb.from_user.id)
@@ -484,7 +603,7 @@ async def ask_toggle(cb: CallbackQuery):
         else:
             current.add(art_id)
             action_text = "Добавлен в выбор"
-            new_icon = "🧺"
+            new_icon = "✅"  # Changed from "🧺" to "✅" to match specification
         _ids_set(stt, current)
         await st.commit()
         
@@ -510,28 +629,31 @@ async def ask_toggle(cb: CallbackQuery):
                 await cb.answer(action_text, show_alert=True)
         
         # Always include reply keyboard
-        chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
-        if cb.message and isinstance(cb.message, Message):
-            await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+        # if cb.message and isinstance(cb.message, Message):
+        #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
     # Callback already answered above, no need to answer again
 
 @router.callback_query(F.data.startswith("aw:delete:"))
 async def ask_delete(cb: CallbackQuery):
     if not (cb.from_user and cb.data):
         # Always include reply keyboard
-        async with session_scope() as st:
-            chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # async with session_scope() as st:
+        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        #     if cb.message:
+        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Invalid")
     try:
         art_id = int(cb.data.split(":", 2)[-1])
     except Exception:
         # Always include reply keyboard
-        async with session_scope() as st:
-            chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # async with session_scope() as st:
+        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        #     if cb.message:
+        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Bad id")
     
     async with session_scope() as st:
@@ -540,28 +662,31 @@ async def ask_delete(cb: CallbackQuery):
         if artifact:
             await st.delete(artifact)
             await st.commit()
-            await cb.answer("Артефакт удален")
+            # Show toast message instead of creating new message
+            await _toast(cb, "Артефакт удален")
         else:
-            await cb.answer("Артефакт не найден")
+            await _toast(cb, "Артефакт не найден")
         
         # Rerender current page
         if cb.message and isinstance(cb.message, Message):
-            await _render_panel(cb.message, st, q=None, page=1)
+            await _render_panel(cb.message, st, q=None, page=1, user_id=cb.from_user.id if cb.from_user else None)
             
         # Always include reply keyboard
-        chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
-        if cb.message and isinstance(cb.message, Message):
-            await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
-    await cb.answer()
+        # Removed temporary "..." message
+        # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+        # if cb.message and isinstance(cb.message, Message):
+        #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+    # Callback already answered above
 
 @router.callback_query(F.data == "aw:autoclear")
 async def ask_autoclear(cb: CallbackQuery):
     if not cb.from_user:
         # Always include reply keyboard
-        async with session_scope() as st:
-            chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # async with session_scope() as st:
+        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        #     if cb.message:
+        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Invalid user")
     async with session_scope() as st:
         stt = await _ensure_user_state(st, cb.from_user.id)
@@ -575,19 +700,21 @@ async def ask_autoclear(cb: CallbackQuery):
             )
             
         # Always include reply keyboard
-        chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
-        if cb.message:
-            await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+        # if cb.message:
+        #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
     await cb.answer()
 
 @router.callback_query(F.data == "aw:clear")
 async def ask_clear(cb: CallbackQuery):
     if not cb.from_user:
         # Always include reply keyboard
-        async with session_scope() as st:
-            chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # async with session_scope() as st:
+        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        #     if cb.message:
+        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Invalid user")
     async with session_scope() as st:
         stt = await _ensure_user_state(st, cb.from_user.id)
@@ -601,28 +728,31 @@ async def ask_clear(cb: CallbackQuery):
             )
             
         # Always include reply keyboard
-        chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
-        if cb.message:
-            await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+        # if cb.message:
+        #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
     await cb.answer("Очищено")
 
 @router.callback_query(F.data == "aw:arm")
 async def ask_arm(cb: CallbackQuery):
     if not cb.from_user:
         # Always include reply keyboard
-        async with session_scope() as st:
-            chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # async with session_scope() as st:
+        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        #     if cb.message:
+        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Invalid user")
     async with session_scope() as st:
         stt = await _ensure_user_state(st, cb.from_user.id)
         sel = _ids_get(stt)
         if not sel:
             # Always include reply keyboard
-            chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+            # Removed temporary "..." message
+            # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+            # if cb.message:
+            #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
             return await cb.answer("Не выбрано ни одного источника", show_alert=True)
         stt.ask_armed = True
         await st.commit()
@@ -638,14 +768,16 @@ async def ask_arm(cb: CallbackQuery):
                     reply_markup=inline_kb
                 )
                 # Also send the reply keyboard to prevent it from disappearing
-                await cb.message.answer("...", reply_markup=main_reply_kb(False))
+                # Removed temporary "..." message
+                # await cb.message.answer("...", reply_markup=main_reply_kb(False))
             else:
                 await cb.message.answer("Введите вопрос…", reply_markup=ForceReply(selective=True))
                 
         # Always include reply keyboard
-        chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
-        if cb.message:
-            await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+        # if cb.message:
+        #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
     await cb.answer()
 
 @router.callback_query(F.data == "aw:toggle_chat")
@@ -653,10 +785,11 @@ async def ask_toggle_chat(cb: CallbackQuery):
     """Inline button handler to toggle chat on."""
     if not cb.from_user:
         # Always include reply keyboard
-        async with session_scope() as st:
-            chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
-            if cb.message:
-                await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # async with session_scope() as st:
+        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        #     if cb.message:
+        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Invalid user")
     async with session_scope() as st:
         from app.services.memory import set_chat_mode
@@ -673,9 +806,10 @@ async def ask_toggle_chat(cb: CallbackQuery):
             )
             
         # Always include reply keyboard
-        chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
-        if cb.message:
-            await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message
+        # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+        # if cb.message:
+        #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
     await cb.answer("Чат включен")
 
 @router.callback_query(F.data == "aw:import_last")
@@ -684,6 +818,29 @@ async def ask_import_last(cb: CallbackQuery):
     # Import the last document by calling the wizard_import_last function directly
     from app.handlers.menu import wizard_import_last
     return await wizard_import_last(cb)
+
+@router.callback_query(F.data == "aw:clear_search")
+async def ask_clear_search(cb: CallbackQuery):
+    """Clear search filter and re-render panel."""
+    if not cb.from_user:
+        # Always include reply keyboard
+        # Removed temporary "..." message
+        # async with session_scope() as st:
+        #     chat_on, *_ = await get_chat_flags(st, cb.from_user.id if cb.from_user else 0)
+        #     if cb.message:
+        #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+        return await cb.answer("Invalid user")
+    
+    async with session_scope() as st:
+        if cb.message and isinstance(cb.message, Message):
+            await _render_panel(cb.message, st, q=None, page=1)
+            
+        # Always include reply keyboard
+        # Removed temporary "..." message
+        # chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+        # if cb.message and isinstance(cb.message, Message):
+        #     await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
+    await cb.answer()
 
 # Public entry used by chat free-text handler. LLM calls are DISABLED here on purpose.
 async def run_question_with_selection(message: Message, prompt: str):
