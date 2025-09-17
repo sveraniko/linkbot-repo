@@ -12,7 +12,7 @@ services:
       retries: 20
     # Внешний порт БД не публикуем — боту он не нужен
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Changed from 5432:5432 to 5433:5432 to avoid conflicts
     volumes:
       - linkbot_db_data:/var/lib/postgresql/data
 

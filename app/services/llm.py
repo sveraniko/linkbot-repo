@@ -21,6 +21,41 @@ LLM_DISABLED = os.getenv("LLM_DISABLED", "0") == "1"
 # Initialize OpenAI client
 client = AsyncOpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
 
+# HOTFIX: put near your OpenAI call builder
+TEMPERATURE_SUPPORTED = (
+    # классические чаты поддерживают кастомную температуру
+    "gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o"
+)
+
+REASONING_FAMILY = ("o1", "o3", "o4", "o5", "gpt-5", "gpt-5-thinking")
+
+def _model_caps(model: str) -> dict:
+    m = model.lower()
+    caps = {"use_temperature": False, "tokens_param": "max_tokens"}
+    if any(m.startswith(x) for x in TEMPERATURE_SUPPORTED):
+        caps["use_temperature"] = True
+        caps["tokens_param"] = "max_tokens"
+    if any(m.startswith(x) for x in REASONING_FAMILY):
+        # reasoning-модели требуют max_completion_tokens и часто игнорируют temperature
+        caps["use_temperature"] = False
+        caps["tokens_param"] = "max_completion_tokens"
+    return caps
+
+def build_openai_payload(model: str, messages: list, *, temperature: float|None, max_tokens: int|None):
+    caps = _model_caps(model)
+    payload = {"model": model, "messages": messages}
+
+    # лимит токенов: правильное имя параметра
+    if max_tokens:
+        payload[caps["tokens_param"]] = max_tokens
+
+    # температура — только для семейства, где это поддерживается
+    if caps["use_temperature"] and temperature is not None and temperature != 1:
+        payload["temperature"] = float(temperature)
+    # иначе — вообще не добавляем ключ 'temperature'
+
+    return payload
+
 async def call_llm(
     system_prompt: str,
     context_prompt: str,
@@ -51,16 +86,26 @@ async def call_llm(
     start_time = time.time()
     
     try:
-        response = await client.chat.completions.create(
+        # HOTFIX: replace manual dict with helper
+        payload = build_openai_payload(
             model=model,
             messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            timeout=timeout
+            temperature=temperature,     # можно оставить 0.7 — хелпер сам отбросит
+            max_tokens=max_tokens or LLM_MAX_TOKENS_OUT
         )
+        payload["timeout"] = timeout
+        response = await client.chat.completions.create(**payload)
         
         duration = time.time() - start_time
         response_text = response.choices[0].message.content or ""
+        
+        # Ensure we have a valid response text
+        if not response_text.strip():
+            response_text = "Извините, я не смог сформулировать ответ на ваш вопрос. Попробуйте переформулировать его или выбрать другие источники."
+        
+        # Ensure minimum length to avoid Telegram issues
+        if len(response_text.strip()) < 1:
+            response_text = "Извините, я не смог сформулировать ответ на ваш вопрос. Попробуйте переформулировать его или выбрать другие источники."
         
         metadata = {
             "model": model,

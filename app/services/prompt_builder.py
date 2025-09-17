@@ -35,7 +35,7 @@ def build_context_prompt(sources: List[Dict[str, Any]]) -> str:
         Formatted context prompt
     """
     if not sources:
-        return "No sources selected."
+        return "No sources selected. Please select at least one source to ask questions about."
     
     context_parts = ["SOURCES:"]
     
@@ -50,10 +50,13 @@ def build_context_prompt(sources: List[Dict[str, Any]]) -> str:
         context_parts.append(f"\nSOURCE [{source_id}] - {title} {tag_str}")
         
         # Add chunks
-        for chunk in chunks:
-            chunk_text = chunk.get("text", "")
-            if chunk_text.strip():
-                context_parts.append(f"- {chunk_text}")
+        if chunks:
+            for chunk in chunks:
+                chunk_text = chunk.get("text", "")
+                if chunk_text.strip():
+                    context_parts.append(f"- {chunk_text}")
+        else:
+            context_parts.append("- No content available for this source")
     
     return "\n".join(context_parts)
 
@@ -69,6 +72,11 @@ def build_user_prompt(question: str) -> str:
     """
     # Escape HTML characters to prevent injection
     escaped_question = escape(question)
+    
+    # Ensure we have a valid question
+    if not escaped_question.strip():
+        escaped_question = "Пожалуйста, задайте вопрос."
+    
     return escaped_question
 
 def format_source_chips(sources: List[Dict[str, Any]]) -> str:

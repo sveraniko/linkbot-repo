@@ -42,10 +42,20 @@ async def open_actions_from_kb(message: Message):
             open_menu = None
 
     if open_menu:
+        # Delete the command message to keep chat clean
+        try:
+            await message.delete()
+        except Exception:
+            pass
         return await open_menu(message)
 
     # Фоллбек, если прямой вызов не найден:
     # лучше вернуть подсказку, чем молчать
+    # Delete the command message to keep chat clean
+    try:
+        await message.delete()
+    except Exception:
+        pass
     return await message.answer("Открой меню командой /menu")
 
 @router.message(F.text == BTN_ASK)
@@ -54,6 +64,11 @@ async def open_ask_from_kb(message: Message):
     Open ASK-WIZARD panel from the keyboard button.
     """
     from app.handlers.ask import ask_open
+    # Delete the command message to keep chat clean
+    try:
+        await message.delete()
+    except Exception:
+        pass
     return await ask_open(message)
 
 @router.message(F.text.in_({BTN_CHAT_ON, BTN_CHAT_OFF}))
@@ -66,6 +81,7 @@ async def kb_chat_toggle(message: Message):
         new_state = not chat_on
         await set_chat_mode(st, message.from_user.id, on=new_state)
         await st.commit()
+        # Delete the command message to keep chat clean
         try:
             await message.delete()
         except Exception:

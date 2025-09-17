@@ -1,11 +1,8 @@
+import json
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Text, ForeignKey, Integer, DateTime, func, Table, Column, BigInteger, Boolean
 from sqlalchemy.dialects import postgresql
 from app.db import Base
-
-class Tag(Base):
-    __tablename__ = "tags"
-    name: Mapped[str] = mapped_column(String(64), primary_key=True)
 
 # Таблица связи многие-ко-многим для тегов артефактов
 artifact_tags = Table(
@@ -14,6 +11,18 @@ artifact_tags = Table(
     Column("artifact_id", ForeignKey("artifacts.id", ondelete="CASCADE"), primary_key=True),
     Column("tag_name", ForeignKey("tags.name", ondelete="CASCADE"), primary_key=True),
 )
+
+# Таблица связи для ответов (answer_links)
+answer_links = Table(
+    "answer_links",
+    Base.metadata,
+    Column("answer_id", ForeignKey("artifacts.id", ondelete="CASCADE"), primary_key=True),
+    Column("source_id", ForeignKey("artifacts.id", ondelete="CASCADE"), primary_key=True),
+)
+
+class Tag(Base):
+    __tablename__ = "tags"
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
 
 class Project(Base):
     __tablename__ = "projects"
@@ -27,18 +36,37 @@ class Artifact(Base):
     __tablename__ = "artifacts"
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
-    kind: Mapped[str] = mapped_column(String(32))  # note|import
+    kind: Mapped[str] = mapped_column(String(32))  # note|import|answer
     title: Mapped[str] = mapped_column(String(256))
     raw_text: Mapped[str] = mapped_column(Text)
     uri: Mapped[str | None] = mapped_column(String(512), nullable=True)  # MinIO URL or other storage reference
     pinned: Mapped[bool] = mapped_column(Boolean, default=False)
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("artifacts.id", ondelete="SET NULL"))
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Answer metadata fields
+    related_source_ids: Mapped[dict | None] = mapped_column(postgresql.JSONB, nullable=True)
+    run_meta: Mapped[dict | None] = mapped_column(postgresql.JSONB, nullable=True)
 
     project: Mapped[Project] = relationship(back_populates="artifacts")
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="artifact", cascade="all, delete-orphan")
     # Теги как список Tag объектов (через association table)
     tags: Mapped[list["Tag"]] = relationship("Tag", secondary=artifact_tags, lazy="selectin")
+    # Связи для ответов (source artifacts linked to this answer)
+    source_artifacts: Mapped[list["Artifact"]] = relationship(
+        "Artifact",
+        secondary=answer_links,
+        primaryjoin=id == answer_links.c.answer_id,
+        secondaryjoin=id == answer_links.c.source_id,
+        back_populates="answer_artifacts"
+    )
+    # Обратные связи (answers linked to this source artifact)
+    answer_artifacts: Mapped[list["Artifact"]] = relationship(
+        "Artifact",
+        secondary=answer_links,
+        primaryjoin=id == answer_links.c.source_id,
+        secondaryjoin=id == answer_links.c.answer_id,
+        back_populates="source_artifacts"
+    )
 
 class Chunk(Base):
     __tablename__ = "chunks"
@@ -103,6 +131,13 @@ class UserState(Base):
     ask_footer_msg_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # ASK prompt message ID
     ask_prompt_msg_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ASK refine message IDs
+    ask_refine_msg_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ask_refine_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # ASK last answer data (for Delete/Refine/Sources functionality)
+    last_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ASK in-flight flag (for anti-duplicate protection)
+    ask_inflight: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 class Repo(Base):
     __tablename__ = "repos"

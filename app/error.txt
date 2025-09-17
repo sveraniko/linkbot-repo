@@ -1,128 +1,47 @@
- File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 143, in __init__
-    self._dbapi_connection = engine.raw_connection()
-                             ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 3301, in raw_connection
-    return self.pool.connect()
-           ^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 447, in connect
-    return _ConnectionFairy._checkout(self)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
-    fairy = _ConnectionRecord.checkout(pool)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 711, in checkout
-    rec = pool._do_get()
-          ^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/impl.py", line 306, in _do_get
-    return self._create_connection()
-           ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 388, in _create_connection
-    return _ConnectionRecord(self)
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 673, in __init__
-    self.__connect()
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 899, in __connect
-    with util.safe_reraise():
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
-    raise exc_value.with_traceback(exc_tb)
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 895, in __connect
-    self.dbapi_connection = connection = pool._invoke_creator(self)
-                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/create.py", line 661, in connect
-    return dialect.connect(*cargs, **cparams)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 629, in connect
-    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/psycopg/connection.py", line 125, in connect
-    raise type(last_ex)("\n".join(lines)).with_traceback(None)
-psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 5432 failed: Connection refused
-        Is the server running on that host and accepting TCP/IP connections?
-Multiple connection attempts failed. All failures were:
-- host: 'localhost', port: 5432, hostaddr: '::1': connection failed: connection to server at "::1", port 5432 failed: Connection refused
-        Is the server running on that host and accepting TCP/IP connections?
-- host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection failed: connection to server at "127.0.0.1", port 5432 failed: Connection refused
-        Is the server running on that host and accepting TCP/IP connections?
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/usr/local/bin/alembic", line 8, in <module>
-    sys.exit(main())
-             ^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/alembic/config.py", line 1022, in main
-    CommandLine(prog=prog).main(argv=argv)
-  File "/usr/local/lib/python3.11/site-packages/alembic/config.py", line 1012, in main
-    self.run_cmd(cfg, options)
-  File "/usr/local/lib/python3.11/site-packages/alembic/config.py", line 946, in run_cmd
-    fn(
-  File "/usr/local/lib/python3.11/site-packages/alembic/command.py", line 483, in upgrade
-    script.run_env()
-  File "/usr/local/lib/python3.11/site-packages/alembic/script/base.py", line 549, in run_env
-    util.load_python_file(self.dir, "env.py")
-  File "/usr/local/lib/python3.11/site-packages/alembic/util/pyfiles.py", line 116, in load_python_file
-    module = load_module_py(module_id, path)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/alembic/util/pyfiles.py", line 136, in load_module_py
-    spec.loader.exec_module(module)  # type: ignore
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "/app/alembic/env.py", line 52, in <module>
-    run_migrations_online()
-  File "/app/alembic/env.py", line 44, in run_migrations_online
-    with connectable.connect() as connection:
-         ^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 3277, in connect
-    return self._connection_cls(self)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 145, in __init__
-    Connection._handle_dbapi_exception_noconnection(
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2440, in _handle_dbapi_exception_noconnection
-    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 143, in __init__
-    self._dbapi_connection = engine.raw_connection()
-                             ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 3301, in raw_connection
-    return self.pool.connect()
-           ^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 447, in connect
-    return _ConnectionFairy._checkout(self)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 1264, in _checkout
-    fairy = _ConnectionRecord.checkout(pool)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 711, in checkout
-    rec = pool._do_get()
-          ^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/impl.py", line 306, in _do_get
-    return self._create_connection()
-           ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 388, in _create_connection
-    return _ConnectionRecord(self)
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 673, in __init__
-    self.__connect()
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 899, in __connect
-    with util.safe_reraise():
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
-    raise exc_value.with_traceback(exc_tb)
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 895, in __connect
-    self.dbapi_connection = connection = pool._invoke_creator(self)
-                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/create.py", line 661, in connect
-    return dialect.connect(*cargs, **cparams)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 629, in connect
-    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/site-packages/psycopg/connection.py", line 125, in connect
-    raise type(last_ex)("\n".join(lines)).with_traceback(None)
-sqlalchemy.exc.OperationalError: (psycopg.OperationalError) connection failed: connection to server at "127.0.0.1", port 5432 failed: Connection refused
-        Is the server running on that host and accepting TCP/IP connections?
-Multiple connection attempts failed. All failures were:
-- host: 'localhost', port: 5432, hostaddr: '::1': connection failed: connection to server at "::1", port 5432 failed: Connection refused
-        Is the server running on that host and accepting TCP/IP connections?
-- host: 'localhost', port: 5432, hostaddr: '127.0.0.1': connection failed: connection to server at "127.0.0.1", port 5432 failed: Connection refused
-        Is the server running on that host and accepting TCP/IP connections?
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
+ ✔ project-memory-bot-bot                Built                                                                     0.0s
+ ✔ Container project-memory-bot-minio-1  Healthy                                                                  11.1s
+ ✔ Container project-memory-bot-db-1     Healthy                                                                  11.1s
+ ✔ Container project-memory-bot-bot-1    Started                                                                  11.4s
+bot-1  | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+bot-1  | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+bot-1  | INFO  [alembic.runtime.migration] Will assume transactional DDL.
+bot-1  | INFO  [alembic.runtime.migration] Will assume transactional DDL.
+bot-1  | INFO:__main__:Starting Telegram bot...
+bot-1  | INFO:__main__:MinIO bucket ensured
+bot-1  | INFO:__main__:Bot commands set successfully
+bot-1  | INFO:__main__:Routers registered, starting polling...
+bot-1  | INFO:aiogram.dispatcher:Start polling
+bot-1  | INFO:aiogram.dispatcher:Run polling for bot @ProjectMemory_Bot id=8386572026 - 'ProjectMemoryBot'
+bot-1  | INFO:aiogram.event:Update id=658402173 is handled. Duration 275 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658402174 is handled. Duration 655 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658402175 is handled. Duration 119 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658402176 is handled. Duration 119 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658402177 is handled. Duration 134 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658402178 is not handled. Duration 17 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658402179 is handled. Duration 117 ms by bot id=8386572026
+bot-1  | DEBUG: active_proj: <app.models.Project object at 0x7f842ca77e50>
+bot-1  | DEBUG: active_proj.id: 1, active_proj.name: lovender
+bot-1  | DEBUG: proj: <app.models.Project object at 0x7f842ca77e50>
+bot-1  | DEBUG: _render_panel - project_ids=[1], search_query='None', page=1
+bot-1  | INFO:aiogram.event:Update id=658402180 is handled. Duration 1258 ms by bot id=8386572026
+bot-1  | INFO:aiogram.event:Update id=658402181 is handled. Duration 123 ms by bot id=8386572026
+bot-1  | INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+bot-1  | INFO:openai._base_client:Retrying request to /chat/completions in 0.403497 seconds
+bot-1  | INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+bot-1  | INFO:openai._base_client:Retrying request to /chat/completions in 0.916000 seconds
+bot-1  | INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+bot-1  | ERROR:app.llm:LLM error: Error code: 429 - {'error': {'message': 'Request too large for gpt-4o in organization org-a6ZpP0qup21B8P6cR45v8Nhl on tokens per min (TPM): Limit 30000, Requested 34934. The input or output tokens must be reduced in order to run successfully. Visit https://platform.openai.com/account/rate-limits to learn more.', 'type': 'tokens', 'param': None, 'code': 'rate_limit_exceeded'}}
+bot-1  | Traceback (most recent call last):
+bot-1  |   File "/app/app/llm.py", line 60, in ask_llm
+bot-1  |     resp = await _client.chat.completions.create(
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/openai/resources/chat/completions/completions.py", line 2583, in create
+bot-1  |     return await self._post(
+bot-1  |            ^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/openai/_base_client.py", line 1794, in post
+bot-1  |     return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+bot-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+bot-1  |   File "/usr/local/lib/python3.11/site-packages/openai/_base_client.py", line 1594, in request
+bot-1  |     raise self._make_status_error_from_response(err.response) from None
+bot-1  | openai.RateLimitError: Error code: 429 - {'error': {'message': 'Request too large for gpt-4o in organization org-a6ZpP0qup21B8P6cR45v8Nhl on tokens per min (TPM): Limit 30000, Requested 34934. The input or output tokens must be reduced in order to run successfully. Visit https://platform.openai.com/account/rate-limits to learn more.', 'type': 'tokens', 'param': None, 'code': 'rate_limit_exceeded'}}
+bot-1  | INFO:aiogram.event:Update id=658402182 is handled. Duration 4850 ms by bot id=8386572026

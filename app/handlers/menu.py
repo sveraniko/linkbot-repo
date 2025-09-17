@@ -407,7 +407,7 @@ async def _ask_with_template(cb: CallbackQuery, template: str):
         if cb.message and isinstance(cb.message, Message):
             await cb.message.answer(answer)
 
-@router.callback_query(F.data.startswith("ask:"))
+@router.callback_query(F.data.startswith("ask:todo") | F.data.startswith("ask:risks") | F.data.startswith("ask:relnotes"))
 async def ask_templates(cb: CallbackQuery):
     from app.handlers.keyboard import main_reply_kb as build_reply_kb
     from app.services.memory import get_chat_flags

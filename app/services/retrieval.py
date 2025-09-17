@@ -56,27 +56,30 @@ async def load_selected_sources(user_id: int, selected_artifact_ids: List[int]) 
             for chunk in chunks:
                 # Normalize text
                 normalized_text = normalize_text(chunk.text)
-                normalized_chunks.append({
-                    "idx": chunk.idx,
-                    "text": normalized_text,
-                    "tokens": chunk.tokens or len(normalized_text) // 4  # Fallback estimation
-                })
+                # Only include chunks with actual content
+                if normalized_text.strip():
+                    normalized_chunks.append({
+                        "idx": chunk.idx,
+                        "text": normalized_text,
+                        "tokens": chunk.tokens or len(normalized_text) // 4  # Fallback estimation
+                    })
+                    
+                    # Count tokens
+                    artifact_tokens += chunk.tokens or len(normalized_text) // 4
+            
+            # Create source metadata (only if we have content)
+            if normalized_chunks:
+                source_metadata = {
+                    "id": artifact.id,
+                    "title": artifact.title or str(artifact.id),
+                    "tags": [tag.name for tag in artifact.tags] if artifact.tags else [],
+                    "created_at": artifact.created_at,
+                    "chunks": normalized_chunks,
+                    "total_tokens": artifact_tokens
+                }
                 
-                # Count tokens
-                artifact_tokens += chunk.tokens or len(normalized_text) // 4
-            
-            # Create source metadata
-            source_metadata = {
-                "id": artifact.id,
-                "title": artifact.title or str(artifact.id),
-                "tags": [tag.name for tag in artifact.tags] if artifact.tags else [],
-                "created_at": artifact.created_at,
-                "chunks": normalized_chunks,
-                "total_tokens": artifact_tokens
-            }
-            
-            sources_metadata.append(source_metadata)
-            total_tokens += artifact_tokens
+                sources_metadata.append(source_metadata)
+                total_tokens += artifact_tokens
         
         # Remove duplicates (by content hash)
         sources_metadata = remove_duplicate_sources(sources_metadata)

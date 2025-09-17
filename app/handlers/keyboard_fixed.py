@@ -74,6 +74,7 @@ async def kb_on(message: Message):
 async def kb_chat_toggle(message: Message):
     from app.services.memory import set_chat_mode, get_chat_flags
     from app.db import session_scope
+    from app.handlers.keyboard import main_reply_kb as build_reply_kb
     # Delete the original chat toggle message to prevent chat clutter
     try:
         await message.delete()
@@ -85,4 +86,4 @@ async def kb_chat_toggle(message: Message):
             new_on = not chat_on                 # <-- ВАЖНО: инвертируем
             await set_chat_mode(st, message.from_user.id, on=new_on)
             await st.commit()
-            await message.answer(f"Chat mode: {'ON' if new_on else 'OFF'}", reply_markup=main_reply_kb(new_on))  # <-- пересобираем клавиатуру
+            await message.answer(f"Chat mode: {'ON' if new_on else 'OFF'}", reply_markup=build_reply_kb(new_on))  # <-- пересобираем клавиатуру

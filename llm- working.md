@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-LLM_DISABLED = os.getenv("LLM_DISABLED", "0") == "1"  # 0 = ON by default, 1 = OFF
+LLM_DISABLED = os.getenv("LLM_DISABLED", "1") == "1"  # 1 = OFF by default
 
 import asyncio
 import logging

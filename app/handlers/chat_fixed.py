@@ -18,7 +18,10 @@ router = Router()
 TAG_PROMPT_PREFIX = "Свои теги (через запятую)"
 
 # Service texts that should be ignored by the chat handler
-SERVICE_TEXTS = {"Ask ❓", "⚙️ Actions", "Меню", "Menu", "Статус", "Status"}
+SERVICE_TEXTS = {
+    "Ask ❓", "⚙️ Actions", "❓ ASK‑WIZARD", "💬 Chat: ON", "😴 Chat: OFF",
+    "Меню", "Menu", "Статус", "Status"
+}
 
 def answer_kb(msg_id: int, saved: bool):
     # обязательные кнопки: Save / Summary / Tag / Delete / Refine

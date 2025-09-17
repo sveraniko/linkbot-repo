@@ -1,10 +1,18 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# LLM settings
+LLM_DISABLED = os.getenv("LLM_DISABLED", "0") == "1"  # 0 = ON by default, 1 = OFF
 
 class Settings(BaseSettings):
-    bot_token: str = Field(alias="BOT_TOKEN")
-    openai_api_key: str = Field(alias="OPENAI_API_KEY")
-    database_url: str = Field(alias="DATABASE_URL")
+    bot_token: str = Field(default=os.getenv("BOT_TOKEN", ""), alias="BOT_TOKEN")
+    openai_api_key: str = Field(default=os.getenv("OPENAI_API_KEY", ""), alias="OPENAI_API_KEY")
+    database_url: str = Field(default=os.getenv("DATABASE_URL", "postgresql+asyncpg://memuser:secret@db:5432/memdb"), alias="DATABASE_URL")
 
     project_max_chunks: int = Field(default=200, alias="PROJECT_MAX_CHUNKS")
     chunk_size: int = Field(default=1600, alias="CHUNK_SIZE")

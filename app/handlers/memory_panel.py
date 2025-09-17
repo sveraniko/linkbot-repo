@@ -460,7 +460,7 @@ async def memory_create_note(message: Message):
         
         # Always include reply keyboard
         chat_on, *_ = await get_chat_flags(st, message.from_user.id)
-        await message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message - using proper keyboard only
 
 # Import last file
 @router.callback_query(F.data == "mem:import_last")
@@ -723,7 +723,7 @@ async def memory_update_tags(message: Message):
         
         # Always include reply keyboard
         chat_on, *_ = await get_chat_flags(st, message.from_user.id)
-        await message.answer("...", reply_markup=main_reply_kb(chat_on))
+        # Removed temporary "..." message - using proper keyboard only
 
 # Pin artifact
 @router.callback_query(F.data.startswith("mem:pin:"))
