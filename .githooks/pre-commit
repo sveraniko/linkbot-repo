@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+changed=$(git diff --cached --name-only)
+
+# Block any commit that touches env or docker compose files
+if echo "$changed" | grep -E '(^|/)\.env|(^|/)docker-compose(\.ya?ml)?$$' >/dev/null; then
+  echo "[HOOK] Blocking commit: .env* and docker-compose*.yml are protected."
+  exit 1
+fi
+
+# Run pre-commit if available
+if command -v pre-commit >/dev/null 2>&1; then
+  pre-commit run --all-files
+fi

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ForceReply, Message
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ForceReply, Message, BufferedInputFile
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext  # Add this import for FSMContext
 import sqlalchemy as sa
@@ -44,7 +44,10 @@ async def get_preferred_model_helper(user_id: int) -> str:
 # Approximate pricing per 1K tokens (input, output) for cost display
 _PRICING_PER_1K = {
     "gpt-5": (0.002, 0.006),
+    "gpt-5-mini": (0.0010, 0.0030),
+    "gpt-5-nano": (0.0002, 0.0006),
     "gpt-5-thinking": (0.010, 0.030),
+    "gpt-4.1": (0.005, 0.015),
     "gpt-4o": (0.005, 0.015),
     "gpt-4o-mini": (0.0005, 0.0015),
     "gpt-4-turbo": (0.003, 0.009),
@@ -1128,9 +1131,13 @@ async def answer_delete_cancel(cb: CallbackQuery):
             await cb.answer("Отменено")
 
 # HOTFIX: единая панель
-def answer_actions_kb(run_id: str, *, saved: bool = False, pinned: bool = False) -> InlineKeyboardMarkup:
-    """Create inline keyboard with answer action buttons."""
+def answer_actions_kb(run_id: str, *, saved: bool = False, pinned: bool = False, artifact_id: int | None = None) -> InlineKeyboardMarkup:
+    """Create inline keyboard with answer action buttons.
+    If artifact_id is provided, show 🗂 Open.
+    """
     builder = InlineKeyboardBuilder()
+    if artifact_id:
+        builder.button(text="🗂", callback_data=f"ask:answer:open:{artifact_id}")
     builder.button(text=("✅" if saved else "💾"), callback_data=f"ask:answer:save:{run_id}")
     builder.button(text=("📍" if pinned else "📌"), callback_data=f"ask:answer:pin:{run_id}")
     builder.button(text="🧾", callback_data=f"ask:answer:summary:{run_id}")
@@ -1271,21 +1278,10 @@ async def answer_sources_back(cb: CallbackQuery):
         
         saved = last_answer.get("saved", False)
         pinned = last_answer.get("pinned", False)
-        src_ids = last_answer.get("source_ids") or []
-        short_link = None
-        if src_ids:
-            first_id = src_ids[0]
-            try:
-                row = (await st.execute(sa.select(Artifact.title).where(Artifact.id == first_id))).scalar_one_or_none()
-                short_title = (row or str(first_id))
-            except Exception:
-                short_title = str(first_id)
-            if len(short_title) > 18:
-                short_title = short_title[:18] + " …"
-            short_link = (f"📚 Sources: [#{short_title} … id{first_id}]", first_id)
+        artifact_id = last_answer.get("artifact_id")
         
         # Restore original answer actions keyboard
-        kb = answer_actions_kb(run_id, saved=saved, pinned=pinned)
+        kb = answer_actions_kb(run_id, saved=saved, pinned=pinned, artifact_id=artifact_id)
         # Keep context alive; do not clear last_answer here
         
         if cb.message and isinstance(cb.message, Message):
@@ -1330,20 +1326,40 @@ async def answer_save(cb: CallbackQuery):
         if last_answer.get("run_id") != run_id:
             return await cb.answer("Нет контекста", show_alert=True)
         
-        # Mark as saved in the context
+        # Idempotent save: create artifact if not exists
+        artifact_id = last_answer.get("artifact_id")
+        if not artifact_id:
+            proj = await get_active_project(st, cb.from_user.id)
+            if not proj:
+                return await cb.answer("Нет активного проекта", show_alert=True)
+            text = (cb.message.text or cb.message.caption or "") if cb.message and isinstance(cb.message, Message) else ""
+            title = text.splitlines()[0][:128] if text else "Chat answer"
+            art = Artifact(
+                project_id=proj.id,
+                kind="answer",
+                title=title,
+                raw_text=text,
+                pinned=False,
+                related_source_ids={"ids": last_answer.get("source_ids", [])},
+                run_meta=last_answer.get("run_meta") or {}
+            )
+            st.add(art)
+            await st.flush()
+            artifact_id = art.id
+            last_answer["artifact_id"] = artifact_id
+        
         last_answer["saved"] = True
         stt.last_answer = json.dumps(last_answer)
         await st.commit()
         
-        # Update the keyboard to show saved state
-        kb = answer_actions_kb(run_id, saved=True, pinned=last_answer.get("pinned", False))
+        # Update the keyboard to show saved state + Open
+        kb = answer_actions_kb(run_id, saved=True, pinned=last_answer.get("pinned", False), artifact_id=artifact_id)
         
         if cb.message and isinstance(cb.message, Message):
             try:
                 await cb.message.edit_reply_markup(reply_markup=kb)
                 await cb.answer("Сохранено ✅")
             except Exception:
-                # Silently ignore identical markup or minor edit issues
                 await cb.answer("Сохранено ✅")
         else:
             await cb.answer("Invalid message")
@@ -1731,6 +1747,19 @@ async def ask_question_receiver(msg: Message, state: FSMContext):
         reply_markup=kb
     )
     
+    # Persist rendered text and run meta for reliable restore/open
+    async with session_scope() as st:
+        stt = await _ensure_user_state(st, msg.from_user.id)
+        import json
+        try:
+            ctx = json.loads(stt.last_answer) if stt.last_answer else {}
+        except Exception:
+            ctx = {}
+        ctx["answer_text_rendered"] = final_text
+        ctx["run_meta"] = {"model": model_used, "tokens_in": ti, "tokens_out": to, "cost_estimate": float(cost), "ts": int(time.time()*1000)}
+        stt.last_answer = json.dumps(ctx)
+        await st.commit()
+    
     # Ensure reply keyboard is present after final answer
     async with session_scope() as st:
         chat_on, *_ = await get_chat_flags(st, msg.from_user.id)
@@ -1741,6 +1770,181 @@ async def ask_question_receiver(msg: Message, state: FSMContext):
             budget_label = await _calc_budget_label(st, [])
             controls = _panel_kb(0, budget_label, True)
             await msg.answer("ASK панель:", reply_markup=controls)
+
+# ── OPEN: Saved answer card / full view / download / back ─────────────────────
+@router.callback_query(F.data.startswith("ask:answer:open:page:"))
+async def answer_open_page(cb: CallbackQuery):
+    if not cb.from_user or not cb.data:
+        return await cb.answer("Invalid data")
+    parts = cb.data.split(":")
+    if len(parts) < 5:
+        return await cb.answer("Invalid callback data")
+    try:
+        artifact_id = int(parts[3]) if parts[2] == "open" else int(parts[4])
+    except Exception:
+        return await cb.answer("Bad id")
+    # Page index
+    try:
+        page = int(parts[-1])
+    except Exception:
+        page = 1
+    async with session_scope() as st:
+        art = await st.get(Artifact, artifact_id)
+        if not art:
+            return await cb.answer("Артефакт не найден", show_alert=True)
+        text = art.raw_text or ""
+        page_size = 3600
+        total_pages = max(1, (len(text) + page_size - 1) // page_size)
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * page_size
+        chunk = text[start:start+page_size]
+        # Build paging keyboard
+        kb = InlineKeyboardBuilder()
+        if page > 1:
+            kb.button(text="◀", callback_data=f"ask:answer:open:page:{artifact_id}:{page-1}")
+        kb.button(text=f"{page}/{total_pages}", callback_data="ask:noop")
+        if page < total_pages:
+            kb.button(text="▶", callback_data=f"ask:answer:open:page:{artifact_id}:{page+1}")
+        # back row
+        # Need run_id for back
+        stt = await _ensure_user_state(st, cb.from_user.id)
+        try:
+            ctx = json.loads(stt.last_answer) if stt.last_answer else {}
+        except Exception:
+            ctx = {}
+        run_id = ctx.get("run_id", "")
+        kb.button(text="↩️ Назад", callback_data=f"ask:answer:open:back:{run_id}")
+        kb.adjust(3, 1)
+        # Edit message with current page
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.edit_text(chunk, reply_markup=kb.as_markup())
+            except Exception as e:
+                return await cb.answer(f"Ошибка: {str(e)}", show_alert=True)
+    await cb.answer()
+
+@router.callback_query(F.data.startswith("ask:answer:open:download:"))
+async def answer_open_download(cb: CallbackQuery):
+    if not cb.from_user or not cb.data:
+        return await cb.answer("Invalid data")
+    parts = cb.data.split(":")
+    if len(parts) < 4:
+        return await cb.answer("Invalid callback data")
+    try:
+        artifact_id = int(parts[3])
+    except Exception:
+        return await cb.answer("Bad id")
+    async with session_scope() as st:
+        art = await st.get(Artifact, artifact_id)
+        if not art:
+            return await cb.answer("Артефакт не найден", show_alert=True)
+        filename = f"answer-{artifact_id}.txt"
+        content = (art.raw_text or "").encode("utf-8")
+        file = BufferedInputFile(content, filename)
+        if cb.message and isinstance(cb.message, Message) and cb.message.bot:
+            await cb.message.bot.send_document(cb.message.chat.id, document=file, caption=art.title or filename)
+    await cb.answer("Готово")
+
+@router.callback_query(F.data.startswith("ask:answer:open:back:"))
+async def answer_open_back(cb: CallbackQuery):
+    if not cb.from_user or not cb.data:
+        return await cb.answer("Invalid data")
+    parts = cb.data.split(":")
+    if len(parts) < 5:
+        return await cb.answer("Invalid callback data")
+    run_id = parts[4]
+    async with session_scope() as st:
+        stt = await _ensure_user_state(st, cb.from_user.id)
+        try:
+            ctx = json.loads(stt.last_answer) if stt.last_answer else {}
+        except Exception:
+            ctx = {}
+        if ctx.get("run_id") != run_id:
+            return await _toast(cb, "Контекст истёк")
+        text = ctx.get("answer_text_rendered") or "(пусто)"
+        saved = ctx.get("saved", False)
+        pinned = ctx.get("pinned", False)
+        artifact_id = ctx.get("artifact_id")
+        kb = answer_actions_kb(run_id, saved=saved, pinned=pinned, artifact_id=artifact_id)
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.edit_text(text, reply_markup=kb)
+            except Exception:
+                # fallback to just keyboard restore
+                try:
+                    await cb.message.edit_reply_markup(reply_markup=kb)
+                except Exception:
+                    pass
+            # Reattach reply keyboard subtly
+            chat_on, *_ = await get_chat_flags(st, cb.from_user.id)
+            await cb.message.answer("", reply_markup=main_reply_kb(chat_on))
+    await cb.answer("Вернулось")
+
+@router.callback_query(F.data.startswith("ask:answer:open:"))
+async def answer_open(cb: CallbackQuery):
+    if not cb.from_user or not cb.data:
+        return await cb.answer("Invalid data")
+    parts = cb.data.split(":")
+    if len(parts) < 4:
+        return await cb.answer("Invalid callback data")
+    try:
+        artifact_id = int(parts[3])
+    except Exception:
+        return await cb.answer("Bad id")
+    async with session_scope() as st:
+        art = await st.get(Artifact, artifact_id)
+        if not art:
+            return await cb.answer("Артефакт не найден", show_alert=True)
+        # Read last run ctx for back and panel restore
+        stt = await _ensure_user_state(st, cb.from_user.id)
+        try:
+            ctx = json.loads(stt.last_answer) if stt.last_answer else {}
+        except Exception:
+            ctx = {}
+        run_id = ctx.get("run_id", "")
+        # Build card text
+        title = art.title or f"Answer #{artifact_id}"
+        # Meta
+        rm = art.run_meta or ctx.get("run_meta") or {}
+        model = rm.get("model", "?")
+        cost = rm.get("cost_estimate")
+        cost_str = f"≈ ${float(cost):.4f}" if isinstance(cost, (int, float)) else ""
+        src_ids = []
+        try:
+            rel = art.related_source_ids or {}
+            src_ids = rel.get("ids") or rel.get("source_ids") or []
+        except Exception:
+            src_ids = []
+        # snippet
+        raw = art.raw_text or ""
+        snippet = raw[:600]
+        if len(raw) > 600:
+            snippet = snippet.rstrip() + " …"
+        card_lines = [
+            f"🗂 {title}",
+            (f"Model: {model} {('• ' + cost_str) if cost_str else ''}"),
+        ]
+        if src_ids:
+            chips = ", ".join([f"id{s}" for s in src_ids[:5]])
+            if len(src_ids) > 5:
+                chips += ", …"
+            card_lines.append(f"Sources: {chips}")
+        card_lines.append("")
+        card_lines.append(snippet)
+        card = "\n".join([ln for ln in card_lines if ln is not None])
+        # Build controls
+        kb = InlineKeyboardBuilder()
+        kb.button(text="📖 Полный текст", callback_data=f"ask:answer:open:page:{artifact_id}:1")
+        kb.button(text="⬇️ Download .txt", callback_data=f"ask:answer:open:download:{artifact_id}")
+        kb.button(text="↩️ Назад", callback_data=f"ask:answer:open:back:{run_id}")
+        kb.adjust(1, 1, 1)
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.edit_text(card, reply_markup=kb.as_markup())
+            except Exception as e:
+                return await cb.answer(f"Ошибка: {str(e)}", show_alert=True)
+    await cb.answer()
+
 async def run_llm_pipeline(
     user_id: int,
     selected_artifact_ids: list[int],

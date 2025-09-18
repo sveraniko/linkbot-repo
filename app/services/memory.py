@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Iterable
 from app.models import Project, Artifact, Chunk, UserState, Tag, artifact_tags, user_linked_projects
 
-ALLOWED_MODELS = {"gpt-5", "gpt-5-thinking"}
+ALLOWED_MODELS = {"gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1"}
 DEFAULT_MODEL = "gpt-5"
 
 async def set_active_project(session: AsyncSession, user_id: int, project: Project):
