@@ -29,11 +29,92 @@ from app.storage import save_file
 from app.ignore import load_pmignore, iter_text_files
 from app.utils.zipfix import fix_zip_name, decode_text_bytes
 from app.utils.tg import _toast, _safe_delete, _send_ephemeral  # Add this import
+from app.services.telemetry import event, error
+from app.services.telemetry import event, error
+# Service-layer imports
+from app.services.llm_pipeline import run_llm_pipeline as svc_run_llm
+from app.services.ask_list import list_sources as svc_list_sources
+from app.services.ask_answer import compute_cost as svc_compute_cost, build_context_line as svc_build_ctx_line, build_sources_short as svc_build_sources_short
+from app.services.ask_selection import toggle_selection as svc_toggle_selection, clear_selection as svc_clear_selection, set_autoclear as svc_set_autoclear, get_selection as svc_get_selection
+from app.services.telemetry import event, error
 
 # Add Berlin timezone
 BERLIN = ZoneInfo("Europe/Berlin")
 
 router = Router(name="ask")
+
+# ---- Generic helpers (iteration 3): reply keyboard + idempotent locks ----
+async def _attach_reply_kb(message: Message, user_id: int):
+    async with session_scope() as st:
+        chat_on, *_ = await get_chat_flags(st, user_id)
+        await message.answer("", reply_markup=main_reply_kb(chat_on))
+
+async def _restore_bar_only(cb: CallbackQuery, run_id: str):
+    async with session_scope() as st:
+        stt = await _ensure_user_state(st, cb.from_user.id)
+        import json
+        try:
+            la = json.loads(stt.last_answer) if stt.last_answer else {}
+        except Exception:
+            la = {}
+        saved = la.get("saved", False)
+        pinned = la.get("pinned", False)
+        artifact_id = la.get("artifact_id")
+        kb = answer_actions_kb(run_id, saved=saved, pinned=pinned, artifact_id=artifact_id)
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.edit_reply_markup(reply_markup=kb)
+            except Exception:
+                pass
+            await _attach_reply_kb(cb.message, cb.from_user.id)
+
+async def _debounce_action(user_id: int, run_id: str, key: str, window_ms: int = 1500) -> bool:
+    """Return True if action should be debounced (skip now)."""
+    import json
+    now = int(time.time() * 1000)
+    async with session_scope() as st:
+        stt = await _ensure_user_state(st, user_id)
+        try:
+            la = json.loads(stt.last_answer) if stt.last_answer else {}
+        except Exception:
+            la = {}
+        if la.get("run_id") != run_id:
+            return False
+        locks = la.get("locks") or {}
+        until = int(locks.get(key) or 0)
+        if now < until:
+            return True
+        locks[key] = now + window_ms
+        la["locks"] = locks
+        stt.last_answer = json.dumps(la)
+        await st.commit()
+        return False
+
+# Helper: attach reply keyboard consistently
+async def _attach_reply_kb(message: Message, user_id: int):
+    async with session_scope() as st:
+        chat_on, *_ = await get_chat_flags(st, user_id)
+        await message.answer("", reply_markup=main_reply_kb(chat_on))
+
+# Helper: restore only answer bar for a given run_id
+async def _restore_bar_only(cb: CallbackQuery, run_id: str):
+    async with session_scope() as st:
+        stt = await _ensure_user_state(st, cb.from_user.id)
+        import json
+        try:
+            la = json.loads(stt.last_answer) if stt.last_answer else {}
+        except Exception:
+            la = {}
+        saved = la.get("saved", False)
+        pinned = la.get("pinned", False)
+        artifact_id = la.get("artifact_id")
+        kb = answer_actions_kb(run_id, saved=saved, pinned=pinned, artifact_id=artifact_id)
+        if cb.message and isinstance(cb.message, Message):
+            try:
+                await cb.message.edit_reply_markup(reply_markup=kb)
+            except Exception:
+                pass
+            await _attach_reply_kb(cb.message, cb.from_user.id)
 
 # Helper to fetch preferred model
 async def get_preferred_model_helper(user_id: int) -> str:
@@ -226,95 +307,10 @@ async def _render_panel(m: Message, st, q: str | None = None, page: int = 1, use
         sel_query = sa.select(Artifact).where(Artifact.id.in_(list(sel)))
         selected_artifacts = (await st.execute(sel_query)).scalars().all()
 
-    # Build base query using subqueries to avoid DISTINCT ON issues (Variant B approach) (Hotfix D)
-    if q:
-        # Parse search query for different filter types
-        tag_filters, id_filters, title_filter = _parse_search_query(q)
-        
-        # Create subquery for artifact IDs based on search criteria
-        if tag_filters:
-            # Subquery for tag-based search using join and distinct (Variant B) (Hotfix D)
-            tag_subq = (
-                sa.select(sa.distinct(artifact_tags.c.artifact_id))
-                .join(Tag, artifact_tags.c.tag_name == Tag.name)
-                .where(
-                    sa.and_(
-                        artifact_tags.c.artifact_id == Artifact.id,  # Join condition in subquery
-                        Artifact.project_id.in_(project_ids),
-                        sa.func.lower(Tag.name).like(f"%{tag_filters[0].lower()}%")
-                    )
-                )
-            )
-            # Main query using the subquery (Variant B) (Hotfix D)
-            base = sa.select(Artifact).where(
-                Artifact.id.in_(tag_subq)
-            ).order_by(Artifact.created_at.desc())
-        elif id_filters:
-            # Direct ID match (Variant B) (Hotfix D)
-            try:
-                artifact_id = int(id_filters[0])
-                # Subquery for ID-based search (Variant B) (Hotfix D)
-                id_subq = sa.select(Artifact.id).where(
-                    sa.and_(
-                        Artifact.project_id.in_(project_ids),
-                        Artifact.id == artifact_id
-                    )
-                )
-                # Main query using the subquery (Variant B) (Hotfix D)
-                base = sa.select(Artifact).where(
-                    Artifact.id.in_(id_subq)
-                ).order_by(Artifact.created_at.desc())
-            except ValueError:
-                # If ID is not valid, return empty result
-                base = sa.select(Artifact).where(
-                    Artifact.id.is_(None)  # This will return empty result
-                ).order_by(Artifact.created_at.desc())
-        elif title_filter:
-            # Title-based search (Variant B) (Hotfix D)
-            # Subquery for title-based search (Variant B) (Hotfix D)
-            title_subq = sa.select(Artifact.id).where(
-                sa.and_(
-                    Artifact.project_id.in_(project_ids),
-                    sa.func.lower(Artifact.title).like(f"%{title_filter.lower()}%")
-                )
-            )
-            # Main query using the subquery (Variant B) (Hotfix D)
-            base = sa.select(Artifact).where(
-                Artifact.id.in_(title_subq)
-            ).order_by(Artifact.created_at.desc())
-        else:
-            # No specific filter, show all artifacts (Variant B) (Hotfix D)
-            # Subquery for all artifacts (Variant B) (Hotfix D)
-            all_subq = sa.select(Artifact.id).where(
-                Artifact.project_id.in_(project_ids)
-            )
-            # Main query using the subquery (Variant B) (Hotfix D)
-            base = sa.select(Artifact).where(
-                Artifact.id.in_(all_subq)
-            ).order_by(Artifact.created_at.desc())
-    else:
-        # No search query, show all artifacts (Variant B) (Hotfix D)
-        # Subquery for all artifacts (Variant B) (Hotfix D)
-        all_subq = sa.select(Artifact.id).where(
-            Artifact.project_id.in_(project_ids)
-        )
-        # Main query using the subquery (Variant B) (Hotfix D)
-        base = sa.select(Artifact).where(
-            Artifact.id.in_(all_subq)
-        ).order_by(Artifact.created_at.desc())
-    
-    page_size = 5  # Changed to 5 items per page as per SPEC v2
-    # Execute query with pagination
-    res = (await st.execute(base.limit(page_size).offset((page-1)*page_size))).scalars().all()
-    
-    # Additional uniqueness check in Python as a safety measure (Hotfix D)
-    unique_res = []
-    seen_ids = set()
-    for artifact in res:
-        if artifact.id not in seen_ids:
-            unique_res.append(artifact)
-            seen_ids.add(artifact.id)
-    res = unique_res
+    # Use service for list/search/pagination
+    page_size = 5
+    res, total_count = await svc_list_sources(project_ids, term=q, page=page, page_size=page_size)
+    total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 1
 
     # Send header with search functionality
     if m.bot:
@@ -388,49 +384,8 @@ async def _render_panel(m: Message, st, q: str | None = None, page: int = 1, use
         # Store message IDs for future pagination
         stt.ask_page_msg_ids = ",".join(sent_msg_ids) if sent_msg_ids else None
         
-        # Send pagination footer
-        # Get total count for pagination using subquery approach (Variant B) (Hotfix D)
-        count_subq = sa.select(sa.func.count(Artifact.id)).where(Artifact.project_id.in_(project_ids))
-        # Apply filters if there's a search query
-        if q:
-            tag_filters, id_filters, title_filter = _parse_search_query(q)
-            if tag_filters:
-                tag_count_subq = (
-                    sa.select(sa.func.count(sa.distinct(artifact_tags.c.artifact_id)))
-                    .join(Tag, artifact_tags.c.tag_name == Tag.name)
-                    .where(
-                        sa.and_(
-                            artifact_tags.c.artifact_id == Artifact.id,
-                            Artifact.project_id.in_(project_ids),
-                            sa.func.lower(Tag.name).like(f"%{tag_filters[0].lower()}%")
-                        )
-                    )
-                )
-                count_subq = tag_count_subq
-            elif id_filters:
-                try:
-                    artifact_id = int(id_filters[0])
-                    id_count_subq = sa.select(sa.func.count(Artifact.id)).where(
-                        sa.and_(
-                            Artifact.project_id.in_(project_ids),
-                            Artifact.id == artifact_id
-                        )
-                    )
-                    count_subq = id_count_subq
-                except ValueError:
-                    count_subq = sa.select(sa.func.count(Artifact.id)).where(Artifact.id.is_(None))
-            elif title_filter:
-                title_count_subq = sa.select(sa.func.count(Artifact.id)).where(
-                    sa.and_(
-                        Artifact.project_id.in_(project_ids),
-                        sa.func.lower(Artifact.title).like(f"%{title_filter.lower()}%")
-                    )
-                )
-                count_subq = title_count_subq
-        
-        count_result = await st.execute(count_subq)
-        total_count = count_result.scalar_one_or_none() or 0
-        total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 1
+        # Pagination footer from service total_count
+        total_pages = max(1, total_pages)
         
         footer_msg_id = None
         if total_pages > 1:
@@ -664,18 +619,15 @@ async def ask_toggle(cb: CallbackQuery):
         #         await cb.message.answer("...", reply_markup=main_reply_kb(chat_on))
         return await cb.answer("Bad id")
     async with session_scope() as st:
-        stt = await _ensure_user_state(st, cb.from_user.id)
-        current = set(_ids_get(stt))
-        if art_id in current:
-            current.remove(art_id)
-            action_text = "Убран из выбора"
-            new_icon = "➕"
-        else:
-            current.add(art_id)
-            action_text = "Добавлен в выбор"
-            new_icon = "✅"  # Changed from "🧺" to "✅" to match specification
-        _ids_set(stt, current)
+        # Use service toggle
+        added = await svc_toggle_selection(st, cb.from_user.id, art_id)
+        action_text = "Добавлен в выбор" if added else "Убран из выбора"
+        new_icon = "✅" if added else "➕"
         await st.commit()
+        try:
+            event("ask_selection_toggle", user_id=cb.from_user.id, chat_id=(cb.message.chat.id if cb.message and cb.message.chat else 0), artifact_id=art_id, added=added)
+        except Exception:
+            pass
         
         # Update the inline keyboard of the current message to show the new icon (instant toggle) (Hotfix E)
         if cb.message and isinstance(cb.message, Message) and cb.message.bot:
@@ -756,9 +708,13 @@ async def ask_autoclear(cb: CallbackQuery):
         return await cb.answer("Invalid user")
     async with session_scope() as st:
         stt = await _ensure_user_state(st, cb.from_user.id)
-        stt.auto_clear_selection = not bool(stt.auto_clear_selection)
+        new_state = await svc_set_autoclear(st, cb.from_user.id, not bool(stt.auto_clear_selection))
         await st.commit()
         budget_label = await _calc_budget_label(st, _ids_get(stt))
+        try:
+            event("ask_selection_autoclear", user_id=cb.from_user.id, value=new_state)
+        except Exception:
+            pass
         if cb.message:
             await cb.message.answer(
                 "ASK панель:",
@@ -779,9 +735,13 @@ async def ask_clear(cb: CallbackQuery):
         return await cb.answer("Invalid user")
     async with session_scope() as st:
         stt = await _ensure_user_state(st, cb.from_user.id)
-        _ids_set(stt, [])
+        await svc_clear_selection(st, cb.from_user.id)
         stt.ask_armed = False
         await st.commit()
+        try:
+            event("ask_selection_clear", user_id=cb.from_user.id)
+        except Exception:
+            pass
         if cb.message:
             await cb.message.answer(
                 "ASK панель:",
@@ -1698,9 +1658,13 @@ async def ask_question_receiver(msg: Message, state: FSMContext):
     async with session_scope() as st:
         stt = await _ensure_user_state(st, msg.from_user.id)
         if stt.auto_clear_selection:
-            _ids_set(stt, [])
+            await svc_clear_selection(st, msg.from_user.id)
             await st.commit()
             auto_cleared = True
+            try:
+                event("ask_selection_autoclear_performed", user_id=msg.from_user.id)
+            except Exception:
+                pass
             
     # Update FSM to clear awaiting flag
     await state.update_data(awaiting_ask_question=False)
@@ -1904,17 +1868,26 @@ async def answer_open(cb: CallbackQuery):
         run_id = ctx.get("run_id", "")
         # Build card text
         title = art.title or f"Answer #{artifact_id}"
+        created_at = art.created_at.strftime("%Y-%m-%d") if getattr(art, "created_at", None) else ""
         # Meta
         rm = art.run_meta or ctx.get("run_meta") or {}
         model = rm.get("model", "?")
         cost = rm.get("cost_estimate")
         cost_str = f"≈ ${float(cost):.4f}" if isinstance(cost, (int, float)) else ""
+        # Sources
         src_ids = []
         try:
             rel = art.related_source_ids or {}
             src_ids = rel.get("ids") or rel.get("source_ids") or []
         except Exception:
             src_ids = []
+        # Tags
+        tag_names = []
+        try:
+            if art.tags:
+                tag_names = [t.name for t in art.tags][:6]
+        except Exception:
+            tag_names = []
         # snippet
         raw = art.raw_text or ""
         snippet = raw[:600]
@@ -1923,17 +1896,20 @@ async def answer_open(cb: CallbackQuery):
         card_lines = [
             f"🗂 {title}",
             (f"Model: {model} {('• ' + cost_str) if cost_str else ''}"),
+            (f"Date: {created_at}" if created_at else None),
+            (f"Tags: {' '.join('#'+t for t in tag_names)}" if tag_names else None),
+            "",
+            snippet,
         ]
-        if src_ids:
-            chips = ", ".join([f"id{s}" for s in src_ids[:5]])
-            if len(src_ids) > 5:
-                chips += ", …"
-            card_lines.append(f"Sources: {chips}")
-        card_lines.append("")
-        card_lines.append(snippet)
         card = "\n".join([ln for ln in card_lines if ln is not None])
-        # Build controls
+        # Build controls with source chips (alerts)
         kb = InlineKeyboardBuilder()
+        # Source chips (first 5)
+        for sid in src_ids[:5]:
+            kb.button(text=f"id{sid}", callback_data=f"ask:answer:srcinfo:{run_id}:{sid}")
+        if src_ids:
+            kb.adjust(min(5, len(src_ids)))
+        # Controls
         kb.button(text="📖 Полный текст", callback_data=f"ask:answer:open:page:{artifact_id}:1")
         kb.button(text="⬇️ Download .txt", callback_data=f"ask:answer:open:download:{artifact_id}")
         kb.button(text="↩️ Назад", callback_data=f"ask:answer:open:back:{run_id}")
@@ -1972,6 +1948,10 @@ async def run_llm_pipeline(
     # Calculate available input budget for logging
     in_budget = calculate_token_budget(user_model, LLM_MAX_TOKENS_OUT)
     print(f"DEBUG LLM start: model={user_model} tokens_budget={in_budget}")
+    try:
+        event("llm_start", user_id=user_id, model=user_model, tokens_budget=in_budget)
+    except Exception:
+        pass
     
     # Load selected sources
     sources, total_tokens = await load_selected_sources(user_id, selected_artifact_ids)

@@ -1,0 +1,9 @@
+# C:\Users\UraJura\project-memory-bot\.gitattributes
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.mp4 binary
+*.zip binary
+*.pdf binary
